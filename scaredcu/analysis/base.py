@@ -162,6 +162,7 @@ class BaseAttack(_BaseAnalysis):
         super().__init__(selection_function=selection_function, model=model, precision=precision)
         self._set_discriminant(discriminant)
         self._set_convergence(convergence_step)
+        self._last_computed = 0
 
         self.scores = None
 
@@ -190,7 +191,7 @@ class BaseAttack(_BaseAnalysis):
         return base_batch_size
 
     def _final_compute(self):
-        if not self.convergence_step or self._batches_processed[-1] != self.processed_traces:
+        if not self.convergence_step or self._batches_processed[-1] != self._last_computed:
             super()._final_compute()
             if self.convergence_step and len(self._batches_processed) > 1:
                 self._compute_convergence_traces()
@@ -200,6 +201,7 @@ class BaseAttack(_BaseAnalysis):
         if self.convergence_step:
             self._batches_processed.append(self.processed_traces)
             if self._batches_processed[-1] - self._batches_processed[0] >= self.convergence_step:
+                self._last_computed = self._batches_processed[-1]
                 self._batches_processed = [self._batches_processed[-1]]
                 self.compute_results()
                 self._compute_convergence_traces()
