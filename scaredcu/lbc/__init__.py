@@ -1,1 +1,1 @@
-from . import modop, selection_functions, simulated_traces
+from . import modop, selection_functions, simulated_traces, kyber, dilithium

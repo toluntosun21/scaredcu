@@ -77,7 +77,7 @@ class BaseMulIncomplete:
         guesses = _cu.concatenate((low[:, _cu.newaxis], high[:, _cu.newaxis]), axis=1)
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
-            _BaseMulIncomplete(reduction, reduce),
+            _BaseMulIncomplete(reduction, reduce, words),
             expected_key_function=None,
             words=None,
             guesses=guesses,

@@ -47,7 +47,6 @@ class SelectionFunction:
             except KeyError as e:
                 if name not in self._base_kwargs:
                     raise SelectionFunctionError(f'Missing values in metadata {list(kwargs.keys())} for expected argument {e} of selection function {self}.')
-
         values = self._function(**self._base_kwargs)
         if values.shape[0] != self._ref_shape[0]:
             raise SelectionFunctionError(f'Shape of selection function output should begin with {self._ref_shape[0]}, not {values.shape[0]}.')
