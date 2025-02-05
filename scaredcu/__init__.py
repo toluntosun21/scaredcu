@@ -6,7 +6,7 @@ import estraces as traces  # noqa: F401
 from .gpu_format import read_ths_from_ram
 
 from .selection_functions.base import selection_function, attack_selection_function, reverse_selection_function, SelectionFunctionError  # noqa: F401
-from .models import HammingWeight, Value, Monobit, Model  # noqa: F401
+from .models import HammingWeight, Value, Monobit, Model, SignedHammingWeight  # noqa: F401
 from .discriminants import discriminant, nanmax, maxabs, opposite_min, nansum, abssum  # noqa: F401
 from .distinguishers import (  # noqa: F401
     DistinguisherError, Distinguisher, DistinguisherMixin,

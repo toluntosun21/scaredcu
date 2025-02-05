@@ -1,9 +1,9 @@
 from . import _utils as utils
-import cupy as _cu
+import cupy as _cp
 import abc
 import numba
 
-_HW_LUT = _cu.array([0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
+_HW_LUT = _cp.array([0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
                      1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
                      1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
                      2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
@@ -50,14 +50,14 @@ class Model(abc.ABC):
     Use this abstract class to implement your own leakage function. Subclass it and define a _compute method which
     take a data argument.
 
-    _compute function must returns a numpy array with all dimensions preserved except the last.
+    _compute function must returns a cupy array with all dimensions preserved except the last.
 
     See implementations of Value, HammingWeight or Monobit model for examples.
 
     """
 
     def __call__(self, data, axis=-1):
-        if not isinstance(data, _cu.ndarray):
+        if not isinstance(data, _cp.ndarray):
             raise TypeError(f'Model should take ndarray as input data, not {type(data)}.')
         if data.dtype.kind not in ('b', 'i', 'u', 'f', 'c'):
             raise ValueError(f'Model should take numerical ndarray as input data, not {data.dtype}).')
@@ -86,13 +86,13 @@ class Model(abc.ABC):
 class Value(Model):
     """Value leakage model class.
 
-    Instances of this class are callables which takes a data numpy array as input and returns it unchanged.
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
 
     Args:
-        data (numpy.ndarray): numeric numpy ndarray
+        data (cupy.ndarray): numeric cupy ndarray
 
     Returns:
-        (numpy.ndarray): unchanged input data numpy ndarray.
+        (cupy.ndarray): unchanged input data cupy ndarray.
 
     """
 
@@ -110,17 +110,17 @@ class Value(Model):
 class Monobit(Model):
     """Monobit model leakage class.
 
-    Instances of this class are callables which takes a data numpy array as input and
+    Instances of this class are callables which takes a data cupy array as input and
     returns the monobit model value computed on last dimension of the array.
 
     Attributes:
         bit (int): number of the bit targeted. Should be between 0 and 8, otherwise raises a ValueError.
 
     Args:
-        data (numpy.ndarray): a ndarray of numeric type
+        data (cupy.ndarray): a ndarray of numeric type
 
     Returns:
-        (numpy.ndarray) an ndarray of the same shape as data, with the result monobit mask applied.
+        (cupy.ndarray) an ndarray of the same shape as data, with the result monobit mask applied.
 
     """
 
@@ -132,7 +132,7 @@ class Monobit(Model):
         self.bit = bit
 
     def _compute(self, data, axis):
-        return (_cu.bitwise_and(data, 2 ** self.bit) > 0).astype('uint8')
+        return (_cp.bitwise_and(data, 2 ** self.bit) > 0).astype('uint8')
 
     @property
     def max_data_value(self):
@@ -145,19 +145,19 @@ class Monobit(Model):
 class HammingWeight(Model):
     """Hamming weight leakage model for unsigned integer arrays.
 
-    Instances of this class are callables which takes a data numpy array as input and returns the
+    Instances of this class are callables which takes a data cupy array as input and returns the
     Hamming Weight values computed on the last dimension of the array, and on a number of words
     defined at instantiation.
 
     Attributes:
         nb_words (int, default=1): number of words on which to compute the hamming weight.
-        expected_dtype(numpy.dtype, default='uint8'): expected dtype of input data.
+        expected_dtype(cupy.dtype, default='uint8'): expected dtype of input data.
 
     Args:
-        data (numpy.ndarray): a unsigned integer ndarray.
+        data (cupy.ndarray): a unsigned integer ndarray.
 
     Returns:
-        (numpy.ndarray) an ndarray with hamming weight computed on last dimension.
+        (cupy.ndarray) an ndarray with hamming weight computed on last dimension.
             Every dimensions but the last are preserved.
 
     """
@@ -168,7 +168,7 @@ class HammingWeight(Model):
         if nb_words <= 0:
             raise ValueError(f'nb_words must be strictly greater than 0, not {nb_words}.')
         try:
-            expected_dtype = _cu.dtype(expected_dtype)
+            expected_dtype = _cp.dtype(expected_dtype)
         except TypeError:
             raise ValueError(f'{expected_dtype} is not a valid dtype.')
         if expected_dtype.kind != 'u':
@@ -190,13 +190,13 @@ class HammingWeight(Model):
         if self.nb_words > 1:
             final_w_dimension = data.shape[axis] // self.nb_words
             final_shape = [d if i != axis else final_w_dimension for i, d in enumerate(data.shape)]
-            result = _cu.zeros(final_shape, dtype='uint32').swapaxes(0, axis)
-            result_data = _cu.swapaxes(result_data, 0, axis)
+            result = _cp.zeros(final_shape, dtype='uint32').swapaxes(0, axis)
+            result_data = _cp.swapaxes(result_data, 0, axis)
             for i in range(result.shape[0]):
                 slices = result_data[i * self.nb_words: (i + 1) * self.nb_words]
-                result[i] = _cu.sum(slices, axis=0)
+                result[i] = _cp.sum(slices, axis=0)
             result_data = result
-            result_data = _cu.swapaxes(result, 0, axis)
+            result_data = _cp.swapaxes(result, 0, axis)
 
         return result_data
 
@@ -211,13 +211,13 @@ class HammingWeight(Model):
 class SignedHammingWeight(HammingWeight):
     """Signed Hamming Weight leakage model class.
 
-    Instances of this class are callables which takes a data numpy array as input and returns it unchanged.
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
 
     Args:
-        data (numpy.ndarray): numeric numpy ndarray
+        data (cupy.ndarray): numeric cupy ndarray
 
     Returns:
-        (numpy.ndarray): unchanged input data numpy ndarray.
+        (cupy.ndarray): unchanged input data cupy ndarray.
 
     """
     def __init__(self, expected_dtype='int16'):
@@ -236,18 +236,18 @@ class SignedHammingWeight(HammingWeight):
 class AbsoluteValue(Model):
     """Absolute Value leakage model class.
 
-    Instances of this class are callables which takes a data numpy array as input and returns it unchanged.
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
 
     Args:
-        data (numpy.ndarray): numeric numpy ndarray
+        data (cupy.ndarray): numeric cupy ndarray
 
     Returns:
-        (numpy.ndarray): unchanged input data numpy ndarray.
+        (cupy.ndarray): unchanged input data cupy ndarray.
 
     """
 
     def _compute(self, data, axis):
-        return _cu.abs(data)
+        return _cp.abs(data)
 
     @property
     def max_data_value(self):
@@ -265,7 +265,7 @@ class ShiftRight(Model):
 
     def _compute(self, data, axis):
         if self.abs:
-            return _cu.abs(data) >> self.numb_bits
+            return _cp.abs(data) >> self.numb_bits
         else:
             return data >> self.numb_bits
 
@@ -285,7 +285,7 @@ class Mask(Model):
 
     def _compute(self, data, axis):
         if self.abs:
-            return _cu.abs(data) & self.mask
+            return _cp.abs(data) & self.mask
         else:
             return data & self.mask
 
@@ -295,3 +295,26 @@ class Mask(Model):
 
     def __str__(self):
         return 'Mask'
+
+
+class OPFTable(Model):
+    """Optimal Prediction Function Table.
+
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
+
+    Args:
+        data (cupy.ndarray): numeric cupy ndarray
+
+    Returns:
+        (cupy.ndarray): unchanged input data cupy ndarray.
+
+    """
+    def __init__(self, table):
+        self.table = table
+
+    @property
+    def max_data_value(self):
+        return self.table.max()
+
+    def _compute(self, data, axis):
+        return self.table[data]

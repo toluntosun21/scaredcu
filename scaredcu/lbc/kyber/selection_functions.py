@@ -9,7 +9,7 @@ import numpy as _np
 
 class _BaseMul(selection_functions._BaseMul):
 
-    def __init__(self, basemul_imp=kyber.BaseMulMonty(), low=False, high=True, reduce=True, words=None):
+    def __init__(self, basemul_imp, low=False, high=True, reduce=True, words=None):
         self.reduce = reduce
         self.words = words
         self.words_flat = _cu.tile(self.words, 2) * 2
@@ -19,7 +19,7 @@ class _BaseMul(selection_functions._BaseMul):
         self.basemul_imp = basemul_imp
 
     def __call__(self, c, guesses):
-        c_ = c[:,:].astype('int32') if self.words_flat is None else c[:, self.words_flat].astype('int32')
+        c_ = c[:,:] if self.words_flat is None else c[:, self.words_flat]
         k = self.basemul_imp.basemul(c_[:, _cu.newaxis, _cu.newaxis, :], guesses[_cu.newaxis, :, _cu.newaxis], self.words, self.low, self.high)
         return k[:,:,0]
 
@@ -28,7 +28,9 @@ class BaseMul:
     """Build an attack selection function which computes output values from the Kyber's base multiplication.
     """
 
-    def __new__(cls, basemul_imp=kyber.BaseMulMonty(), reduce=True, words=None, low=True, high=False, guesses_low=_cu.arange(kyber.q, dtype='int16'), guesses_high=None, neg_trick=False, ciphertext_tag='c', key_tag='s'):
+    def __new__(cls, basemul_imp=None, reduce=True, words=None, low=True, high=False, guesses_low=_cu.arange(kyber.q, dtype='int16'), guesses_high=None, neg_trick=False, ciphertext_tag='c', key_tag='s'):
+        if basemul_imp is None:
+            basemul_imp = kyber.BaseMulMonty()
         if guesses_high is None:
             guesses_high = _np.arange(kyber.q, dtype='int16') if not neg_trick else _np.arange(kyber.q//2 + 1, dtype='int16')
         guesses = _cu.concatenate((_cu.tile(guesses_low, len(guesses_high))[:,_cu.newaxis], _cu.repeat(guesses_high, len(guesses_low))[:,_cu.newaxis]), axis=-1)
@@ -54,10 +56,12 @@ class BaseMulPlant(BaseMul):
 
 
 class BaseMulIterated:
-    """Build an attack selection function which computes output values from the base multiplication.
+    """Build an iterated attack selection function which computes output values from the Kyber's base multiplication.
     """
 
-    def __new__(cls, cu_step, basemul_imp=kyber.BaseMulMonty(), reduce=True, words=None, low=True, high=False, guesses_low=_np.arange(kyber.q, dtype='int16'), guesses_high=None, neg_trick=False, ciphertext_tag='c', key_tag='s'):
+    def __new__(cls, cu_step, basemul_imp=None, reduce=True, words=None, low=True, high=False, guesses_low=_np.arange(kyber.q, dtype='int16'), guesses_high=None, neg_trick=False, ciphertext_tag='c', key_tag='s'):
+        if basemul_imp is None:
+            basemul_imp = kyber.BaseMulMonty()
         if guesses_high is None:
             guesses_high = _np.arange(kyber.q, dtype='int16') if not neg_trick else _np.arange(kyber.q//2 + 1, dtype='int16')
         guesses = _np.concatenate((_np.tile(guesses_low, len(guesses_high))[:,_np.newaxis], _np.repeat(guesses_high, len(guesses_low))[:,_np.newaxis]), axis=-1)        
