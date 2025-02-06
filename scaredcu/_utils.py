@@ -1,18 +1,18 @@
-import cupy as _cu
+import cupy as _cp
 import numpy as _np
 
 def _is_bytes_array(array):
     # Note: Integer arrays cannot contain np.nan or np.inf
-    if not isinstance(array, _cu.ndarray):
+    if not isinstance(array, _cp.ndarray):
         raise TypeError(f'array should be a Numpy ndarray instance, not {type(array)}.')
-    if array.dtype == _cu.uint8:
+    if array.dtype == _cp.uint8:
         return True
     if array.dtype.kind not in 'ui':
         raise ValueError(f'array should be an integer array, not {array.dtype}.')
-    if array.dtype.kind == 'i' and _cu.min(array) < 0:
-        raise ValueError(f'array should be a bytes array, i.e with values in [0, 255], but lowest value {_cu.min(array)} found.')
-    if array.dtype != _cu.int8 and _cu.max(array) > 255:
-        raise ValueError(f'array should be a bytes array, i.e with values in [0, 255], but highest value {_cu.max(array)} found.')
+    if array.dtype.kind == 'i' and _cp.min(array) < 0:
+        raise ValueError(f'array should be a bytes array, i.e with values in [0, 255], but lowest value {_cp.min(array)} found.')
+    if array.dtype != _cp.int8 and _cp.max(array) > 255:
+        raise ValueError(f'array should be a bytes array, i.e with values in [0, 255], but highest value {_cp.max(array)} found.')
     return True
 
 
@@ -26,24 +26,24 @@ def pack_guess(guess, q):
 
 def succ_ratio(key, q, conv, convergence_traces, accept_shift=False, accept_neg=True, clear_nan_inf=True, sa=2, incomplete=False, np_flag=False):
 
-    _cunp = _cu if not np_flag else _np
+    _cpnp = _cp if not np_flag else _np
 
     if len(convergence_traces.shape) == 2:
-        convergence_traces = convergence_traces[:, :, _cunp.newaxis]
+        convergence_traces = convergence_traces[:, :, _cpnp.newaxis]
     elif len(convergence_traces.shape) != 3:
         raise ValueError(f'Invalid shape for Convergence Traces {convergence_traces.shape}')
 
     if clear_nan_inf:
-        convergence_traces[_cunp.isnan(convergence_traces)] = 0
-        convergence_traces[_cunp.isinf(convergence_traces)] = 0
+        convergence_traces[_cpnp.isnan(convergence_traces)] = 0
+        convergence_traces[_cpnp.isinf(convergence_traces)] = 0
 
-    succ_ratios = _cunp.zeros((convergence_traces.shape[1], convergence_traces.shape[2]))
+    succ_ratios = _cpnp.zeros((convergence_traces.shape[1], convergence_traces.shape[2]))
     for key_index in range(convergence_traces.shape[1]):
         N_t = conv
         for j in range(convergence_traces.shape[2]):
-            s = (convergence_traces[:,key_index,j].argsort()[::-1][0])
+            s = (convergence_traces[:,key_index,j].argmax())
             if incomplete:
-                s = _cunp.array(unpack_guess(s, q), dtype=key.dtype)
+                s = _cpnp.array(unpack_guess(s, q), dtype=key.dtype)
             s = s % q
             s_ = key[key_index] % q
 
