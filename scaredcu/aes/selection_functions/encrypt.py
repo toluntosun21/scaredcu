@@ -1,13 +1,13 @@
-from scared.selection_functions.base import _decorated_selection_function, _AttackSelectionFunctionWrapped
-from scared.aes import base as aes
-import cupy as _cu
+from scaredcu.selection_functions.base import _decorated_selection_function, _AttackSelectionFunctionWrapped
+from scaredcu.aes import base as aes
+import cupy as _cp
 
 
 def _add_round_key(data, guesses):
-    res = _cu.empty((len(guesses), ) + data.shape, dtype='uint8')
+    res = _cp.empty((len(guesses), ) + data.shape, dtype='uint8')
     data = data.astype('uint8')
     for i, g in enumerate(guesses):
-        res[i] = _cu.bitwise_xor(data, g)
+        res[i] = _cp.bitwise_xor(data, g)
     return res.swapaxes(0, 1)
 
 
@@ -21,7 +21,7 @@ def _inv_sub_bytes(data, guesses):
 
 def _delta_last_rounds(data, guesses):
     data = data.astype('uint8')
-    return _cu.bitwise_xor(
+    return _cp.bitwise_xor(
         aes.shift_rows(data),
         aes.inv_sub_bytes(
             _add_round_key(data=data, guesses=guesses)
@@ -48,7 +48,7 @@ class FirstAddRoundKey:
 
     """
 
-    def __new__(cls, guesses=_cu.arange(256, dtype='uint8'), words=None, plaintext_tag='plaintext', key_tag='key'):
+    def __new__(cls, guesses=_cp.arange(256, dtype='uint8'), words=None, plaintext_tag='plaintext', key_tag='key'):
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _add_round_key,
@@ -70,7 +70,7 @@ class LastAddRoundKey:
 
     """
 
-    def __new__(cls, guesses=_cu.arange(256, dtype='uint8'), words=None, ciphertext_tag='ciphertext', key_tag='key'):
+    def __new__(cls, guesses=_cp.arange(256, dtype='uint8'), words=None, ciphertext_tag='ciphertext', key_tag='key'):
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _add_round_key,
@@ -92,7 +92,7 @@ class FirstSubBytes:
 
     """
 
-    def __new__(cls, guesses=_cu.arange(256, dtype='uint8'), words=None, plaintext_tag='plaintext', key_tag='key'):
+    def __new__(cls, guesses=_cp.arange(256, dtype='uint8'), words=None, plaintext_tag='plaintext', key_tag='key'):
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _sub_bytes,
@@ -115,7 +115,7 @@ class LastSubBytes:
 
     """
 
-    def __new__(cls, guesses=_cu.arange(256, dtype='uint8'), words=None, ciphertext_tag='ciphertext', key_tag='key'):
+    def __new__(cls, guesses=_cp.arange(256, dtype='uint8'), words=None, ciphertext_tag='ciphertext', key_tag='key'):
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _inv_sub_bytes,
@@ -138,7 +138,7 @@ class DeltaRLastRounds:
 
     """
 
-    def __new__(cls, guesses=_cu.arange(256, dtype='uint8'), words=None, ciphertext_tag='ciphertext', key_tag='key'):
+    def __new__(cls, guesses=_cp.arange(256, dtype='uint8'), words=None, ciphertext_tag='ciphertext', key_tag='key'):
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _delta_last_rounds,

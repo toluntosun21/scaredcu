@@ -74,7 +74,7 @@ class OPFTableReductionBuilder:
     def _filepath(self, d):
         if not os.path.exists(TABLES_DIR):
             os.makedirs(TABLES_DIR)
-        return os.path.join(TABLES_DIR, f"opf_reduction_d{d}_r{self.reduction.id}_q{self.reduction.q}_B{self.reduction.o_dtype.itemsize*8}")
+        return os.path.join(TABLES_DIR, f"opf_reduction_d{d}_r{self.reduction.id}_q{self.reduction.q}_B{self.reduction.o_dtype.itemsize*8}_f{1 if self.fix0 else 0}")
 
     def _build(self, d):
         if d not in self.table_map:

@@ -1,4 +1,4 @@
-from scared import traces
+from scaredcu import traces
 import cupy as _cu
 import math as _math
 
