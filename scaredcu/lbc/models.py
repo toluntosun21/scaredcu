@@ -19,5 +19,5 @@ class OPFTableReduction(OPFTable):
             base_model = SignedHammingWeight(expected_dtype=reduction.o_dtype)
         if not isinstance(base_model, Model):
             raise ValueError("base_model must be an instance of Model")
-        table_builder = OPFTableReductionBuilder(base_model, reduction, fix0=fix0, save=save, load=load)
+        table_builder = OPFTableReductionBuilder(base_model, reduction, fix0=fix0, save=save, load=load, K=K)
         self.table = table_builder.build(d)
