@@ -3,7 +3,8 @@ import logging
 
 import estraces as traces  # noqa: F401
 
-from .gpu_format import read_ths_from_ram
+from .estraces.gpu_format import read_ths_from_ram
+from .estraces.ets_format import read_ths_from_ets_file
 
 from .selection_functions.base import selection_function, attack_selection_function, reverse_selection_function, SelectionFunctionError  # noqa: F401
 from .models import HammingWeight, Value, Monobit, Model, SignedHammingWeight  # noqa: F401
@@ -27,7 +28,8 @@ from .analysis import (  # noqa:F401
     BasePartitionedReverse, MIAReverse,
     MMIAAttack, MMIAReverse,
     TemplateAttack, TemplateDPAAttack,
-    KeyIteratedAttack
+    KeyIteratedAttack,
+    CollisionAttack
 )
 from .preprocesses import preprocess, Preprocess, PreprocessError  # noqa:F401
 from .synchronization import Synchronizer, ResynchroError, SynchronizerError  # noqa:F401

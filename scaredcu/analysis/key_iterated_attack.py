@@ -14,8 +14,6 @@ class KeyIteratedAttack:
         self.attack_kwargs = attack_kwargs
 
     def run(self, ths, preprocesses, step):
-        if not hasattr(self, 'attack_cls'):
-            raise ValueError("Attack not set")
 
         for _ in tqdm(range(self.selection_function.num_steps)):
                 assert self.selection_function.done() == False

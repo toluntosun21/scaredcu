@@ -318,3 +318,23 @@ class OPFTable(Model):
 
     def _compute(self, data, axis):
         return self.table[data]
+
+
+class OPFTableWithBuild(OPFTable):
+    """Optimal Prediction Function Table.
+
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
+
+    Args:
+        data (cupy.ndarray): numeric cupy ndarray
+
+    Returns:
+        (cupy.ndarray): unchanged input data cupy ndarray.
+
+    """
+    def __init__(self, d=2):
+        self.table = self.build(d)
+
+    @abc.abstractmethod
+    def build(self, d):
+        pass

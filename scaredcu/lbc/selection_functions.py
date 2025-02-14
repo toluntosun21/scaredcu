@@ -59,13 +59,23 @@ class BaseMulIterated:
 
 class _BaseMulIncomplete(_BaseMul):
 
+    def __init__(self, reduction, reduce=True, words=None):
+        if words is not None:
+            words_flat = _cp.repeat(words, 2) * 2
+            words_flat[1::2] += 1
+        else:
+            words_flat = None
+        #words = _cp.tile(words, 2) * 2 + _cp.repeat(_cp.array([0, 1], dtype=words.dtype), len(words))
+        super().__init__(reduction, reduce, words_flat)
+
     def __call__(self, c, guesses):
         c_ = c[:,:].astype(self.dtype_long) if self.words is None else c[:, self.words].astype(self.dtype_long)
+        low = (c_[:, _cp.newaxis, 0::2] * guesses[_cp.newaxis, :, 0::2])
+        high = (c_[:, _cp.newaxis, 1::2] * guesses[_cp.newaxis, :, 1::2])
+        t = low + high
         if self.reduce:
-            res = self.reduction.reduce((c_[:, _cp.newaxis, :, :] * guesses[_cp.newaxis, :, _cp.newaxis, :]).sum(axis=3))
-        else:
-            res = (c_[:, _cp.newaxis, :, :] * guesses[_cp.newaxis, :, _cp.newaxis, :]).sum(axis=3)
-        return res
+            return self.reduction.reduce(t)
+        return t
 
 
 class BaseMulIncomplete:

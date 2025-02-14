@@ -1,8 +1,8 @@
 from .opf.opf import OPFTableReductionBuilder
-from scaredcu.models import Model, OPFTable, SignedHammingWeight
-from .modop import Reduction
+from scaredcu.models import Model, OPFTableWithBuild, SignedHammingWeight
 
-class OPFTableReduction(OPFTable):
+
+class OPFTableReduction(OPFTableWithBuild, OPFTableReductionBuilder):
     """Optimal Prediction Function for Reduction Algorithms.
 
     Instances of this class are callables which takes a data numpy array as input and returns it unchanged.
@@ -19,5 +19,5 @@ class OPFTableReduction(OPFTable):
             base_model = SignedHammingWeight(expected_dtype=reduction.o_dtype)
         if not isinstance(base_model, Model):
             raise ValueError("base_model must be an instance of Model")
-        table_builder = OPFTableReductionBuilder(base_model, reduction, fix0=fix0, save=save, load=load, K=K)
-        self.table = table_builder.build(d)
+        OPFTableReductionBuilder.__init__(self, base_model, reduction, fix0=fix0, save=save, load=load, K=K)
+        OPFTableWithBuild.__init__(self, d)

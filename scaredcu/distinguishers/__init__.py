@@ -6,7 +6,8 @@ from .partitioned import (  # noqa: F401
     PartitionedDistinguisher, PartitionedDistinguisherMixin, PartitionedDistinguisherBase,
     ANOVADistinguisher, ANOVADistinguisherMixin,
     SNRDistinguisher, SNRDistinguisherMixin,
-    NICVDistinguisher, NICVDistinguisherMixin
+    NICVDistinguisher, NICVDistinguisherMixin,
+    CollisionDistinguisherMixin
 )
 from .mia import MIADistinguisher, MIADistinguisherMixin  # noqa: F401
 from .mmia import MMIADistinguisherMixin  # noqa: F401

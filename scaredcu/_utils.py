@@ -45,7 +45,10 @@ def succ_ratio(key, q, conv, convergence_traces, accept_shift=False, accept_neg=
             if incomplete:
                 s = _cpnp.array(unpack_guess(s, q), dtype=key.dtype)
             s = s % q
-            s_ = key[key_index] % q
+            if incomplete:
+                s_ = key[2*key_index:2*key_index+2] % q
+            else:                
+                s_ = key[key_index] % q
 
             if (s_ == s).all() or (accept_neg and ((q - s_) == s).all()):
                 succ_ratios[key_index, j] = 1

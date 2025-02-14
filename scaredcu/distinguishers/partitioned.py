@@ -258,3 +258,39 @@ class SNRDistinguisherMixin(PartitionedDistinguisherMixin):
 
 class SNRDistinguisher(PartitionedDistinguisherBase, SNRDistinguisherMixin):
     __doc__ = PartitionedDistinguisherMixin.__doc__ + SNRDistinguisherMixin.__doc__
+
+
+
+class CollisionDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
+    """DistinguisherMixin for collision attacks."""
+
+    def _initialize_accumulators(self):
+        if self._data_words != 2:
+            raise ValueError('Collision distinguisher can only be used with 2 data words.')
+        self.sum = _cu.zeros((self._trace_length, self._data_words, len(self.partitions)), dtype=self.precision)
+        self.counters = _cu.zeros((self._data_words, len(self.partitions)), dtype=self.precision)
+
+    @staticmethod
+    @_cuda.jit(cache=True)
+    def _accumulate_core(traces, data, self_sum, self_counters):
+        start = _cuda.grid(1)
+        stride = _cuda.gridsize(1)
+        for sample_idx in range(start, traces.shape[1], stride):
+            for trace_idx in range(traces.shape[0]):
+                x = traces[trace_idx, sample_idx]
+                for data_idx in range(data.shape[1]):
+                    data_value = data[trace_idx, data_idx]
+                    if data_value != -1:
+                        self_sum[sample_idx, data_idx, data_value] += x
+                        if sample_idx == 0:
+                            self_counters[data_idx, data_value] += 1
+
+    def _accumulate(self, traces, data):
+        self._accumulate_core[128,8](traces, data, self.sum, self.counters)
+
+    def _compute(self):
+        pass
+
+    @property
+    def _distinguisher_str(self):
+        return 'Collision'

@@ -12,7 +12,7 @@ class _BaseMul(selection_functions._BaseMul):
     def __init__(self, basemul_imp, low=False, high=True, reduce=True, words=None):
         self.reduce = reduce
         self.words = words
-        self.words_flat = _cu.tile(self.words, 2) * 2
+        self.words_flat = _cu.repeat(self.words, 2) * 2
         self.words_flat[1::2] += 1
         self.low = low
         self.high = high

@@ -13,3 +13,4 @@ from ._analysis import (  # noqa: F401
 from .template import TemplateAttack, TemplateDPAAttack, BaseTemplateAttack  # noqa: F401
 from .base import BaseAttack, BasePartitionedAttack, BasePartitionedReverse, BaseReverse   # noqa: F401
 from .key_iterated_attack import KeyIteratedAttack
+from .collision_attack import CollisionAttack
