@@ -2,7 +2,7 @@ from .opf.opf import OPFTableReductionBuilder
 from scaredcu.models import Model, OPFTableWithBuild, SignedHammingWeight
 
 
-class OPFTableReduction(OPFTableWithBuild, OPFTableReductionBuilder):
+class OPFTableReduction(OPFTableReductionBuilder, OPFTableWithBuild):
     """Optimal Prediction Function for Reduction Algorithms.
 
     Instances of this class are callables which takes a data numpy array as input and returns it unchanged.
