@@ -1,6 +1,5 @@
 from .base import BasePartitionedAttack
 from scaredcu.distinguishers import CollisionDistinguisherMixin
-import cupy as _cp
 
 
 class CollisionAttack(BasePartitionedAttack, CollisionDistinguisherMixin):
