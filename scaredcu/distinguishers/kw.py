@@ -3,104 +3,107 @@ from .partitioned import PartitionedDistinguisherBase, _PartitionnedDistinguishe
 import cupy as _cp
 from numba import cuda as _cuda
 import logging
-import time
+import math
 
 logger = logging.getLogger(__name__)
 
 
-_accumulate_ranks_and_compute_kernel = _cp.RawKernel(r'''
-extern "C" __global__
-void accumulate_ranks_and_compute(
-    const float* trace_ranks, 
-    const int* data, 
-    const float* self_counters, 
-    float* self_sum, 
-    float* result,
-    int num_traces,
-    int num_samples,
-    int num_data_cols,
-    int num_classes
-) {
-
-                                                     
-    int data_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (data_idx >= num_data_cols) return;
-
-    // Accumulate trace ranks
-    for (int trace_idx = 0; trace_idx < num_traces; trace_idx++) {
-        int data_idy = data[trace_idx * num_data_cols + data_idx];
-        if (data_idy != -1) {
-            for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-                atomicAdd(&self_sum[(sample_idx * num_classes + data_idy) * num_data_cols + data_idx], 
-                          trace_ranks[trace_idx * num_samples + sample_idx]);
-            }
-        }
-    }
-
-    // Compute final result
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        float sum_result = 0;
-        for (int data_idy = 0; data_idy < num_classes; data_idy++) {
-            int counter = self_counters[data_idx * num_classes + data_idy];
-            if (counter > 0) {
-                float sum_val = self_sum[(sample_idx * num_classes + data_idy) * num_data_cols + data_idx];
-                sum_result += sum_val * (sum_val / counter);
-            }
-        }
-        result[data_idx * num_samples + sample_idx] = sum_result;
-    }  
-}
-''', 'accumulate_ranks_and_compute')
-
-
-# Function to call the CuPy kernel
-def accumulate_ranks_and_compute(trace_ranks, data, self_counters, self_sum, result):
-    
-    num_traces, num_samples = trace_ranks.shape
-    num_data_cols = data.shape[1]
-    num_classes = self_counters.shape[1]
-    
-    block_size = 128  # Tunable based on GPU architecture
-    grid_size = (num_data_cols + block_size - 1) // block_size
-    # shared_mem_size = block_size * num_classes * (num_samples//50) * 4  # 4 bytes per float
-    _accumulate_ranks_and_compute_kernel(
-        (grid_size,), (block_size,),
-        (
-            trace_ranks, data, self_counters, self_sum, result,
-            num_traces, num_samples, num_data_cols, num_classes
-        )#, shared_mem=shared_mem_size
-    )
-
-
-
-def insert_and_rank_columns_with_ties(data):
-    """ Inserts a new row into a 2D CuPy array and updates ranks column-wise with tie handling. """
-    sorted_indices = _cp.argsort(data, axis=0)
-    
-    ranks = _cp.zeros_like(data, dtype=_cp.float32)
-    
-    for col in range(data.shape[1]):
-        sorted_col = data[sorted_indices[:, col], col]
-        unique_vals, inverse_indices, counts = _cp.unique(sorted_col, return_inverse=True, return_counts=True)
+def get_kernel_code(num_samples, num_classes, num_data_cols, log_samples_div, samples_cache):
+    return f'''
+    extern "C" __global__
+    void accumulate_ranks_and_compute(
+        const float* __restrict__ trace_ranks, 
+        const char* __restrict__ data, 
+        const float* __restrict__ self_counters, 
+        float* result,
+        int num_traces
+    ) {{
+        extern __shared__ float shared_mem[];
         
-        cumulative_counts = _cp.cumsum(counts)
-        avg_ranks = (cumulative_counts - counts / 2.0).astype(_cp.float32)
+        const int num_samples = {num_samples};
+        const int num_classes = {num_classes};
+        const int log_samples_div = {log_samples_div};
+        const int samples_cache = {samples_cache};                                                     
+        const int num_data_cols = {num_data_cols};
+                                                                                                            
+        int data_idx = (blockIdx.x * blockDim.x + threadIdx.x) >> log_samples_div;
+        int sample_idy = (blockIdx.x * blockDim.x + threadIdx.x) & ((1 << log_samples_div) - 1);                                                     
+        if (data_idx >= num_data_cols) return;
+
+        for (int sample_idx = 0; sample_idx < samples_cache; sample_idx++) {{
+            for (int data_idy = 0; data_idy < num_classes; data_idy++) {{                                                     
+                shared_mem[(sample_idx * num_classes + data_idy) * blockDim.x + threadIdx.x] = 0;
+            }}
+        }}                                                     
+        for (int trace_idx = 0; trace_idx < num_traces; trace_idx++) {{
+            long int data_index = ((long int) trace_idx) * num_data_cols + data_idx;
+            int data_idy = *(data + data_index);
+            if (data_idy != -1) {{
+                for (int sample_idx = 0; sample_idx < samples_cache; sample_idx++) {{
+                    int sample_id = sample_idy * samples_cache + sample_idx;
+                    if (sample_id >= num_samples) continue;                                                                                                          
+                    shared_mem[(sample_idx * num_classes + data_idy) * blockDim.x + threadIdx.x] += 
+                        trace_ranks[trace_idx * num_samples + sample_id];
+                }}
+            }}
+        }}
         
-        ranks[sorted_indices[:, col], col] = avg_ranks[inverse_indices]
-    
-    return data, ranks
+        float sum_val;                                                     
+
+        for (int sample_idx = 0; sample_idx < samples_cache; sample_idx++) {{
+            float sum_result = 0;
+            int sample_id = sample_idy * samples_cache + sample_idx;
+            if (sample_id >= num_samples) continue;
+            for (int data_idy = 0; data_idy < num_classes; data_idy++) {{
+                int counter = self_counters[data_idx * num_classes + data_idy];
+                if (counter > 0) {{
+                    sum_val = shared_mem[(sample_idx * num_classes + data_idy) * blockDim.x + threadIdx.x];
+                    sum_result += sum_val * (sum_val / counter);
+                }}
+            }}
+            result[data_idx * num_samples + sample_id] = sum_result;
+        }}
+    }}
+    '''
 
 
 class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
     """This distinguisher mixin applies a Kruskal-Wallis test."""
 
+    def accumulate_ranks_and_compute(self, trace_ranks, data, self_counters, result):
+        
+        num_traces = trace_ranks.shape[0]
+        self._accumulate_ranks_and_compute_kernel(
+            (self.grid_size,), (self.block_size,),
+            (
+                trace_ranks, data, self_counters, result,
+                num_traces#, num_data_cols
+            ), shared_mem=self.shared_mem_size
+        )
+
+    def _init_kernel(self):
+        self.shared_mem_size = 48 * 1024
+        self.block_size = 512
+        num_classes = self.counters.shape[1]
+        self.samples_cache = self.shared_mem_size / (self.block_size * 4 * num_classes)
+        samples_div_init = ((self._trace_length - 1) // self.samples_cache) + 1
+        self.log_samples_div = math.ceil(math.log2(samples_div_init))
+        samples_div = 1 << self.log_samples_div
+        self.grid_size = ((self._data_words * samples_div) + self.block_size - 1) // self.block_size
+        assert self.shared_mem_size >= (self.block_size * 4 * num_classes * self.samples_cache)
+        kernel_code = get_kernel_code(num_samples=self._trace_length, num_classes=num_classes, num_data_cols=self._data_words,
+                                      log_samples_div=self.log_samples_div, samples_cache=self.samples_cache)
+        self._accumulate_ranks_and_compute_kernel = _cp.RawKernel(kernel_code, 'accumulate_ranks_and_compute')
+
+
     def _initialize_accumulators(self):
-        self.max_traces = 200000
-        self.data = _cp.empty((self.max_traces, self._data_words), dtype=_cp.int32)
-        self.traces = _cp.empty((self.max_traces, self._trace_length), dtype=self.precision)
+        self.max_traces = 400000
+        # self.data = _cp.empty((self.max_traces, self._data_words), dtype=_cp.int8)
+        self.data = None
+        self.traces = None # _cp.empty((self.max_traces, self._trace_length), dtype=self.precision)
         self.counters = _cp.zeros((self._data_words, len(self.partitions)), dtype=self.precision)
         self.result = _cp.zeros((self._data_words, self._trace_length), dtype=self.precision)
-        self.sum = _cp.zeros((self._trace_length * len(self.partitions) * self._data_words), dtype=self.precision)
+        self._init_kernel()
 
     @staticmethod
     @_cuda.jit(cache=True)
@@ -113,11 +116,35 @@ class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
                 if data_value != (-1):
                     self_counters[data_idx, data_value] += 1
 
+    @staticmethod
+    def _insert_and_rank_columns_with_ties(traces):
+        sorted_indices = _cp.argsort(traces, axis=0)
+        
+        ranks = _cp.zeros_like(traces, dtype=_cp.float32)
+        
+        for col in range(traces.shape[1]):
+            sorted_col = traces[sorted_indices[:, col], col]
+            _, inverse_indices, counts = _cp.unique(sorted_col, return_inverse=True, return_counts=True)
+            
+            cumulative_counts = _cp.cumsum(counts)
+            avg_ranks = (cumulative_counts - counts / 2.0).astype(_cp.float32)
+            
+            ranks[sorted_indices[:, col], col] = avg_ranks[inverse_indices]
+        
+        return ranks
 
     def _accumulate(self, traces, data):
-        self.traces[self.processed_traces - traces.shape[0] : self.processed_traces] = traces.astype(self.precision)
-        self.traces[: self.processed_traces], self.trace_ranks = insert_and_rank_columns_with_ties(self.traces[: self.processed_traces])
-        self.data[self.processed_traces - traces.shape[0] : self.processed_traces] = data.astype(self.data.dtype)
+        if self.traces is None:
+            self.traces = traces.astype(self.precision)
+        else:
+            self.traces = _cp.concatenate((self.traces, traces.astype(self.precision)), axis=0)
+        # self.traces[self.processed_traces - traces.shape[0] : self.processed_traces] = traces.astype(self.precision)
+        self.trace_ranks = self._insert_and_rank_columns_with_ties(self.traces[: self.processed_traces])
+        if self.data is None:
+            self.data = data.astype('int8')
+        else:
+            self.data = _cp.concatenate((self.data, data.astype('int8')), axis=0)
+        # self.data[self.processed_traces - traces.shape[0] : self.processed_traces] = data.astype(self.data.dtype)
         self._accumulate_counters[64,8](data, self.counters)
 
     @staticmethod
@@ -138,8 +165,7 @@ class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
                         result[data_idx, sample_idx] += ((self_sum[data_idx, sample_idx, data_idy]))*((self_sum[data_idx, sample_idx, data_idy]) / self_counters[data_idx, data_idy])
 
     def _compute(self):
-        self.sum[:] = 0
-        accumulate_ranks_and_compute(self.trace_ranks, self.data, self.counters, self.sum, self.result)
+        self.accumulate_ranks_and_compute(self.trace_ranks, self.data, self.counters, self.result)
         return self.result
 
     @property
