@@ -8,12 +8,12 @@ import math
 logger = logging.getLogger(__name__)
 
 
-def get_kernel_code(num_samples, num_classes, num_data_cols, log_samples_div, samples_cache):
+def get_kernel_code_0(num_samples, num_classes, num_data_cols, log_samples_div, samples_cache, data_type):
     return f'''
     extern "C" __global__
     void accumulate_ranks_and_compute(
         const float* __restrict__ trace_ranks, 
-        const char* __restrict__ data, 
+        const {data_type}* __restrict__ data, 
         const float* __restrict__ self_counters, 
         float* result,
         int num_traces
@@ -67,43 +67,113 @@ def get_kernel_code(num_samples, num_classes, num_data_cols, log_samples_div, sa
     '''
 
 
+def get_kernel_code_1(num_samples, num_classes, num_data_cols, data_type):
+    return f'''
+    extern "C" __global__
+    void accumulate_ranks_and_compute(
+        const float* __restrict__ trace_ranks, 
+        const {data_type}* __restrict__ data, 
+        const float* __restrict__ self_counters, 
+        float* self_sum, 
+        float* result,
+        int num_traces
+    ) {{
+
+        const int num_samples = {num_samples};
+        const int num_classes = {num_classes};
+        const int num_data_cols = {num_data_cols};
+
+        int data_idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (data_idx >= num_data_cols) return;
+
+        for (int trace_idx = 0; trace_idx < num_traces; trace_idx++) {{
+            int data_idy = data[trace_idx * num_data_cols + data_idx];
+            if (data_idy != -1) {{
+                for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {{
+                    atomicAdd(&self_sum[(sample_idx * num_classes + data_idy) * num_data_cols + data_idx], 
+                            trace_ranks[trace_idx * num_samples + sample_idx]);
+                }}
+            }}
+        }}
+
+        for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {{
+            float sum_result = 0;
+            for (int data_idy = 0; data_idy < num_classes; data_idy++) {{
+                int counter = self_counters[data_idx * num_classes + data_idy];
+                if (counter > 0) {{
+                    float sum_val = self_sum[(sample_idx * num_classes + data_idy) * num_data_cols + data_idx];
+                    sum_result += sum_val * (sum_val / counter);
+                }}
+            }}
+            result[data_idx * num_samples + sample_idx] = sum_result;
+        }}  
+    }}
+    '''
+
+
 class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
     """This distinguisher mixin applies a Kruskal-Wallis test."""
 
-    def accumulate_ranks_and_compute(self, trace_ranks, data, self_counters, result):
-        
-        num_traces = trace_ranks.shape[0]
-        self._accumulate_ranks_and_compute_kernel(
-            (self.grid_size,), (self.block_size,),
-            (
-                trace_ranks, data, self_counters, result,
-                num_traces#, num_data_cols
-            ), shared_mem=self.shared_mem_size
-        )
+    def accumulate_ranks_and_compute(self):
+        num_traces = self.trace_ranks.shape[0]
+        if self.kernel_method == 0:
+            self._accumulate_ranks_and_compute_kernel(
+                (self.grid_size,), (self.block_size,),
+                (
+                    self.trace_ranks, self.data, self.counters, self.result,
+                    num_traces
+                ), shared_mem=self.shared_mem_size
+            )
+        elif self.kernel_method == 1:
+            self.sum[:] = 0
+            self._accumulate_ranks_and_compute_kernel(
+                (self.grid_size,), (self.block_size,),
+                (
+                    self.trace_ranks, self.data, self.counters, self.sum, self.result,
+                    num_traces
+                )
+            )
 
     def _init_kernel(self):
         self.shared_mem_size = 48 * 1024
         self.block_size = 512
         num_classes = self.counters.shape[1]
-        self.samples_cache = self.shared_mem_size / (self.block_size * 4 * num_classes)
-        samples_div_init = ((self._trace_length - 1) // self.samples_cache) + 1
-        self.log_samples_div = math.ceil(math.log2(samples_div_init))
-        samples_div = 1 << self.log_samples_div
-        self.grid_size = ((self._data_words * samples_div) + self.block_size - 1) // self.block_size
-        assert self.shared_mem_size >= (self.block_size * 4 * num_classes * self.samples_cache)
-        kernel_code = get_kernel_code(num_samples=self._trace_length, num_classes=num_classes, num_data_cols=self._data_words,
-                                      log_samples_div=self.log_samples_div, samples_cache=self.samples_cache)
-        self._accumulate_ranks_and_compute_kernel = _cp.RawKernel(kernel_code, 'accumulate_ranks_and_compute')
+        self.samples_cache = self.shared_mem_size // (self.block_size * 4 * num_classes)
+        if self.samples_cache > 0:
+            samples_div_init = ((self._trace_length - 1) // self.samples_cache) + 1
+            self.log_samples_div = math.ceil(math.log2(samples_div_init))
+            samples_div = 1 << self.log_samples_div
+            self.grid_size = ((self._data_words * samples_div) + self.block_size - 1) // self.block_size
+            assert self.shared_mem_size >= (self.block_size * 4 * num_classes * self.samples_cache)
+            kernel_code = get_kernel_code_0(num_samples=self._trace_length, num_classes=num_classes, num_data_cols=self._data_words,
+                                            log_samples_div=self.log_samples_div, samples_cache=self.samples_cache, data_type=self.partition_dtype_c)
+            self._accumulate_ranks_and_compute_kernel = _cp.RawKernel(kernel_code, 'accumulate_ranks_and_compute')
+            self.kernel_method = 0
+        else:
+            self.grid_size = (self._data_words + self.block_size - 1) // self.block_size
+            kernel_code = get_kernel_code_1(num_samples=self._trace_length, num_classes=num_classes, num_data_cols=self._data_words, data_type=self.partition_dtype_c)
+            self._accumulate_ranks_and_compute_kernel = _cp.RawKernel(kernel_code, 'accumulate_ranks_and_compute')
+            self.kernel_method = 1
+            self.sum = _cp.zeros((self._trace_length * len(self.partitions) * self._data_words), dtype=self.precision)
 
 
     def _initialize_accumulators(self):
         self.max_traces = 400000
-        # self.data = _cp.empty((self.max_traces, self._data_words), dtype=_cp.int8)
         self.data = None
-        self.traces = None # _cp.empty((self.max_traces, self._trace_length), dtype=self.precision)
+        self.traces = None
         self.counters = _cp.zeros((self._data_words, len(self.partitions)), dtype=self.precision)
         self.result = _cp.zeros((self._data_words, self._trace_length), dtype=self.precision)
+        if self.counters.shape[1] <= 256:
+            self.partition_dtype = _cp.uint8
+            self.partition_dtype_c = 'unsigned char'
+        elif self.counters.shape[1] <= 65536:
+            self.partition_dtype = _cp.uint16
+            self.partition_dtype_c = 'unsigned short'
+        else:
+            self.partition_dtype = _cp.uint32
+            self.partition_dtype_c = 'unsigned int'
         self._init_kernel()
+
 
     @staticmethod
     @_cuda.jit(cache=True)
@@ -138,13 +208,11 @@ class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
             self.traces = traces.astype(self.precision)
         else:
             self.traces = _cp.concatenate((self.traces, traces.astype(self.precision)), axis=0)
-        # self.traces[self.processed_traces - traces.shape[0] : self.processed_traces] = traces.astype(self.precision)
         self.trace_ranks = self._insert_and_rank_columns_with_ties(self.traces[: self.processed_traces])
         if self.data is None:
-            self.data = data.astype('int8')
+            self.data = data.astype(self.partition_dtype)
         else:
-            self.data = _cp.concatenate((self.data, data.astype('int8')), axis=0)
-        # self.data[self.processed_traces - traces.shape[0] : self.processed_traces] = data.astype(self.data.dtype)
+            self.data = _cp.concatenate((self.data, data.astype(self.partition_dtype)), axis=0)
         self._accumulate_counters[64,8](data, self.counters)
 
     @staticmethod
@@ -165,7 +233,7 @@ class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
                         result[data_idx, sample_idx] += ((self_sum[data_idx, sample_idx, data_idy]))*((self_sum[data_idx, sample_idx, data_idy]) / self_counters[data_idx, data_idy])
 
     def _compute(self):
-        self.accumulate_ranks_and_compute(self.trace_ranks, self.data, self.counters, self.result)
+        self.accumulate_ranks_and_compute()
         return self.result
 
     @property
