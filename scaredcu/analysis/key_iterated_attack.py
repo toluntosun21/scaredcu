@@ -2,8 +2,8 @@ from scaredcu.selection_functions.iterated import _IteratedAttackSelectionFuncti
 from scaredcu.container import Container
 from tqdm.auto import tqdm
 
-class KeyIteratedAttack:
 
+class KeyIteratedAttack:
 
     def __init__(self, selection_function, attack_cls, *attack_args, **attack_kwargs):
         if not isinstance(selection_function, _IteratedAttackSelectionFunctionWrapped):
@@ -18,14 +18,16 @@ class KeyIteratedAttack:
         for _ in tqdm(range(self.selection_function.num_steps)):
                 assert self.selection_function.done() == False
 
-
                 attack = self.attack_cls(*self.attack_args, selection_function=self.selection_function, **self.attack_kwargs)
 
                 for i in range(0, len(ths), step):
                     container = Container(ths[i:i + step], preprocesses=preprocesses)
                     attack.run(container)
 
-                self.selection_function.save_scores(attack.convergence_traces)
+                if hasattr(attack, 'convergence_traces') and attack.convergence_traces is not None:
+                    self.selection_function.save_scores(attack.convergence_traces)
+                else:
+                    self.selection_function.save_scores(attack.scores)
                 self.selection_function.next()
 
         return self.selection_function.scores

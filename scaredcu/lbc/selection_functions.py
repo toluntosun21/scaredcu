@@ -26,8 +26,9 @@ class BaseMul:
     """Build an attack selection function which computes output values from the base multiplication.
     """
 
-    def __new__(cls, reduction, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False):
-        guesses = reduction.reduce(_cp.arange(reduction.q, dtype=reduction.o_dtype)) if not neg_trick else reduction.reduce(_cp.arange(reduction.q//2 + 1, dtype=reduction.o_dtype))
+    def __new__(cls, reduction, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False, guesses=None):
+        if guesses is None:
+            guesses = reduction.reduce(_cp.arange(reduction.q, dtype=reduction.o_dtype)) if not neg_trick else reduction.reduce(_cp.arange(reduction.q//2 + 1, dtype=reduction.o_dtype))
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _BaseMul(reduction, reduce, words),
@@ -43,8 +44,9 @@ class BaseMulIterated:
     """Build an attack selection function which computes output values from the base multiplication.
     """
 
-    def __new__(cls, reduction, cp_step, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False):
-        guesses = reduction.reduce(_np.arange(reduction.q, dtype=reduction.o_dtype)) if not neg_trick else reduction.reduce(_np.arange(reduction.q//2 + 1, dtype=reduction.o_dtype))
+    def __new__(cls, reduction, cp_step, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False, guesses=None):
+        if guesses is None:
+            guesses = reduction.reduce(_np.arange(reduction.q, dtype=reduction.o_dtype)) if not neg_trick else reduction.reduce(_np.arange(reduction.q//2 + 1, dtype=reduction.o_dtype))
         return _decorated_selection_function(
             _IteratedAttackSelectionFunctionWrapped,
             _BaseMul(reduction, reduce, words),
@@ -65,7 +67,6 @@ class _BaseMulIncomplete(_BaseMul):
             words_flat[1::2] += 1
         else:
             words_flat = None
-        #words = _cp.tile(words, 2) * 2 + _cp.repeat(_cp.array([0, 1], dtype=words.dtype), len(words))
         super().__init__(reduction, reduce, words_flat)
 
     def __call__(self, c, guesses):
@@ -82,10 +83,27 @@ class BaseMulIncomplete:
     """Build an attack selection function which computes output values from the incomplete base multiplication.
     """
 
-    def __new__(cls, reduction, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False):
-        guesses_low = reduction.reduce(_cp.arange(reduction.q, dtype=reduction.o_dtype))
-        guesses_high = guesses_low if not neg_trick else guesses_low[:reduction.q//2 + 1]
-        guesses = _cp.concatenate((_cp.tile(guesses_low, len(guesses_high))[:,_cp.newaxis], _cp.repeat(guesses_high, len(guesses_low))[:,_cp.newaxis]), axis=-1)        
+    @classmethod
+    def create_guesses(cls, reduction, neg_trick=False, guesses_low=None, guesses_high=None, mode='full', cpnp=_cp):
+        if mode not in ['same', 'full']:
+            raise ValueError('Only same or full mode are available for combination preprocesses.')
+
+        if guesses_low is None:
+            guesses_low = reduction.reduce(cpnp.arange(reduction.q, dtype=reduction.o_dtype))
+        if guesses_high is None:
+            guesses_high = guesses_low if not neg_trick else guesses_low[:reduction.q//2 + 1]
+
+        if mode == 'same':
+            if len(guesses_low) != len(guesses_high):
+                raise ValueError('In same mode, the length of guesses_low and guesses_high must be the same.')
+            guesses = cpnp.concatenate((guesses_low[:,cpnp.newaxis], guesses_high[:,cpnp.newaxis]), axis=-1)
+        elif mode == 'full':
+            guesses = cpnp.concatenate((cpnp.tile(guesses_low, len(guesses_high))[:,cpnp.newaxis], cpnp.repeat(guesses_high, len(guesses_low))[:,cpnp.newaxis]), axis=-1)
+        return guesses
+
+    def __new__(cls, reduction, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False, guesses_low=None, guesses_high=None, mode='full'):
+        guesses = cls.create_guesses(reduction, neg_trick, guesses_low, guesses_high, mode)
+
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _BaseMulIncomplete(reduction, reduce, words),
@@ -97,14 +115,13 @@ class BaseMulIncomplete:
             byte_guesses=False)
 
 
-class BaseMulIncompleteIterated:
+class BaseMulIncompleteIterated(BaseMulIncomplete):
     """Build an attack selection function which computes output values from the base multiplication.
     """
 
-    def __new__(cls, reduction, cp_step, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False):
-        guesses_low = reduction.reduce(_np.arange(reduction.q, dtype=reduction.o_dtype))
-        guesses_high = guesses_low if not neg_trick else guesses_low[:reduction.q//2 + 1]
-        guesses = _np.concatenate((_np.tile(guesses_low, len(guesses_high))[:,_np.newaxis], _np.repeat(guesses_high, len(guesses_low))[:,_np.newaxis]), axis=-1)        
+    def __new__(cls, reduction, cp_step, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False, guesses_low=None, guesses_high=None, mode='full'):
+        guesses = cls.create_guesses(reduction, neg_trick, guesses_low, guesses_high, mode, cpnp=_np)
+
         return _decorated_selection_function(
             _IteratedAttackSelectionFunctionWrapped,
             _BaseMulIncomplete(reduction, reduce, words),

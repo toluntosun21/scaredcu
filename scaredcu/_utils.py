@@ -24,7 +24,7 @@ def pack_guess(guess, q):
     return guess[0] + guess[1]*q
 
 
-def succ_ratio(key, q, conv, convergence_traces, accept_shift=False, accept_neg=True, clear_nan_inf=True, sa=2, incomplete=False, np_flag=False):
+def succ_ratio(key, q, conv, convergence_traces, accept_neg=True, clear_nan_inf=True, incomplete=False, np_flag=False, guesses=None):
 
     _cpnp = _cp if not np_flag else _np
 
@@ -42,9 +42,12 @@ def succ_ratio(key, q, conv, convergence_traces, accept_shift=False, accept_neg=
         N_t = conv
         for j in range(convergence_traces.shape[2]):
             s = (convergence_traces[:,key_index,j].argmax())
-            if incomplete:
-                s = _cpnp.array(unpack_guess(s, q), dtype=key.dtype)
-            s = s % q
+            if guesses is None:
+                if incomplete:
+                    s = _cpnp.array(unpack_guess(s, q), dtype=key.dtype)
+                s = s % q
+            else:
+                s = guesses[s,:,j] % q
             if incomplete:
                 s_ = key[2*key_index:2*key_index+2] % q
             else:                
@@ -52,11 +55,6 @@ def succ_ratio(key, q, conv, convergence_traces, accept_shift=False, accept_neg=
 
             if (s_ == s).all() or (accept_neg and ((q - s_) == s).all()):
                 succ_ratios[key_index, j] = 1
-            elif accept_shift:
-                if (is_shift(s_, s, q, sa)):
-                    succ_ratios[key_index, j] = 1
-                elif (is_shift(q - s_, s, q, sa)):
-                    succ_ratios[key_index, j] = 1
         N_t += conv
     
     return succ_ratios.mean(axis=0)

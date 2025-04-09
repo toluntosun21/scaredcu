@@ -61,8 +61,8 @@ class SNRAttack(BasePartitionedAttack, distinguishers.SNRDistinguisherMixin):
 class MIAAttack(BasePartitionedAttack, distinguishers.MIADistinguisherMixin):
     __doc__ = distinguishers.MIADistinguisherMixin.__doc__ + BaseAttack.__doc__
 
-    def __init__(self, bins_number=128, bin_edges=None, *args, **kwargs):
-        distinguishers.mia._set_histogram_parameters(self, bins_number=bins_number, bin_edges=bin_edges)
+    def __init__(self, bins_number=128, bin_edges=None, place_outliers=False, *args, **kwargs):
+        distinguishers.mia._set_histogram_parameters(self, bins_number=bins_number, bin_edges=bin_edges, place_outliers=place_outliers)
         return super().__init__(*args, **kwargs)
 
 
@@ -81,8 +81,8 @@ class SNRReverse(BasePartitionedReverse, distinguishers.SNRDistinguisherMixin):
 class MIAReverse(BasePartitionedReverse, distinguishers.MIADistinguisherMixin):
     __doc__ = distinguishers.MIADistinguisherMixin.__doc__ + BaseReverse.__doc__
 
-    def __init__(self, bins_number=128, bin_edges=None, *args, **kwargs):
-        distinguishers.mia._set_histogram_parameters(self, bins_number=bins_number, bin_edges=bin_edges)
+    def __init__(self, bins_number=128, bin_edges=None, place_outliers=False, *args, **kwargs):
+        distinguishers.mia._set_histogram_parameters(self, bins_number=bins_number, bin_edges=bin_edges, place_outliers=place_outliers)
         return super().__init__(*args, **kwargs)
 
 

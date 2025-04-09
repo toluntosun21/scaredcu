@@ -13,7 +13,8 @@ import estraces
 
 def collect_traces_basemult(N, d=2, reduction=None, n=256, q=769, alpha=1, beta=0,sigma=0, 
                             const_seed=False, prng_off=False,
-                            incomplete=0, seed=0, model=None, filename=None, get_masks=False):
+                            incomplete=0, seed=0, model=None, filename=None, get_masks=False,
+                            chosen_c=None):
 
 
     _npcp = _cp if filename is None else _np
@@ -40,9 +41,13 @@ def collect_traces_basemult(N, d=2, reduction=None, n=256, q=769, alpha=1, beta=
     if filename is not None:
         es_writer = estraces.ETSWriter(filename=filename, overwrite=False)
 
+    c_range = reduction.q if chosen_c is None else len(chosen_c)
+
     for _ in tqdm(range(N)):
 
-        c = reduction.reduce(_cp.random.randint(0, q, (n, incomplete_), dtype=dtype))
+        c = reduction.reduce(_cp.random.randint(0, c_range, (n, incomplete_), dtype=dtype))
+        if chosen_c is not None:
+            c = chosen_c[c]
         s_ = _cp.random.randint(0, q, (d, n, incomplete_), dtype=dtype) if not prng_off else _cp.zeros((d, n, incomplete_), dtype=dtype)
         s_ = reduction.reduce(s_)
 

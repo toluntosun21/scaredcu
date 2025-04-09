@@ -55,7 +55,7 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
 
     @staticmethod
     @_cuda.jit(cache=True)
-    def _accumulate_core(traces, data, self_bin_edges, self_accumulators):
+    def _accumulate_core_1(traces, data, self_bin_edges, self_accumulators, self_place_outliers):
         start = _cuda.grid(1)
         stride = _cuda.gridsize(1)
 
@@ -71,13 +71,54 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
                     bin_idx = int((x - min_edge) * norm)
                 elif x == max_edge:
                     bin_idx = nbins - 1
+                elif self_place_outliers:
+                    if x > max_edge:
+                        bin_idx = nbins - 1
+                    else:
+                        bin_idx = 0
                 else:
                     continue
                 for data_idx in range(data.shape[1]):
                     self_accumulators[sample_idx, bin_idx, data[trace_idx, data_idx], data_idx] += 1
 
+    @staticmethod
+    @_cuda.jit(cache=True)
+    def _accumulate_core_2(traces, data, self_bin_edges, self_accumulators, self_place_outliers):
+        start = _cuda.grid(1)
+        stride = _cuda.gridsize(1)
+
+        nbins = len(self_bin_edges) - 1
+        min_edge = self_bin_edges[0]
+        max_edge = self_bin_edges[-1]
+        norm = nbins / (max_edge - min_edge)
+
+        for data_idx in range(start, data.shape[1], stride):
+            for trace_idx in range(traces.shape[0]):
+                data_idy = data[trace_idx, data_idx]
+                for sample_idx in range(traces.shape[1]):
+                    x = traces[trace_idx, sample_idx]
+                    if x >= min_edge and x < max_edge:
+                        bin_idx = int((x - min_edge) * norm)
+                    elif x == max_edge:
+                        bin_idx = nbins - 1
+                    elif self_place_outliers:
+                        if x > max_edge:
+                            bin_idx = nbins - 1
+                        else:
+                            bin_idx = 0
+                    else:
+                        continue
+                    self_accumulators[sample_idx, bin_idx, data_idy, data_idx] += 1
+
     def _accumulate(self, traces, data):
-        self._accumulate_core(traces, data, self.bin_edges, self.accumulators)
+        if self._data_words > 256:
+            self.block_size = 256
+            self.grid_size = ((self._data_words - 1) // self.block_size) + 1
+            self._accumulate_core_2[self.grid_size, self.block_size](traces, data, self.bin_edges, self.accumulators, self.place_outliers)
+        else:
+            self.block_size = 256
+            self.grid_size = ((self._trace_length - 1) // self.block_size) + 1
+            self._accumulate_core_1[self.grid_size, self.block_size](traces, data, self.bin_edges, self.accumulators, self.place_outliers)
 
     def _compute_pdf(self, array, axis):
         s = array.sum(axis=axis)
@@ -106,7 +147,7 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
         return 'MIA'
 
 
-def _set_histogram_parameters(obj, bins_number, bin_edges):
+def _set_histogram_parameters(obj, bins_number, bin_edges, place_outliers):
     if not isinstance(bins_number, int):
         raise TypeError(f'bins_number must be an integer, not {type(bins_number)}.')
     obj.bins_number = bins_number
@@ -114,10 +155,11 @@ def _set_histogram_parameters(obj, bins_number, bin_edges):
     obj.y_window = None
     if bin_edges is not None:
         obj.bin_edges = bin_edges
+    obj.place_outliers = place_outliers
 
 
 class MIADistinguisher(PartitionedDistinguisherBase, MIADistinguisherMixin):
 
-    def __init__(self, bins_number=128, bin_edges=None, partitions=None, precision='uint32'):
-        _set_histogram_parameters(self, bins_number=bins_number, bin_edges=bin_edges)
+    def __init__(self, bins_number=128, bin_edges=None, partitions=None, place_outliers=False, precision='uint32'):
+        _set_histogram_parameters(self, bins_number=bins_number, bin_edges=bin_edges, place_outliers=place_outliers)
         return super().__init__(partitions=partitions, precision=precision)

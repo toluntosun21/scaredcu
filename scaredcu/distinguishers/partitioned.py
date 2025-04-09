@@ -280,6 +280,8 @@ class CollisionDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
             raise ValueError('Collision distinguisher can only be used with 2 data words.')
         self.sum = _cp.zeros((self._trace_length, self._data_words, len(self.partitions)), dtype=self.precision)
         self.counters = _cp.zeros((self._data_words, len(self.partitions)), dtype=self.precision)
+        self.data = None
+        self.traces = None
 
     @staticmethod
     @_cpda.jit(cache=True)
@@ -298,6 +300,12 @@ class CollisionDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
 
     def _accumulate(self, traces, data):
         self._accumulate_core[128,8](traces, data, self.sum, self.counters)
+        if self.data is None:
+            self.data = data
+            self.traces = traces
+        else:
+            self.data = _cp.concatenate((self.data, data), axis=0)
+            self.traces = _cp.concatenate((self.traces, traces), axis=0)
 
     def _set_delta_func_args(self, keys):
         self._saved_keys = keys
