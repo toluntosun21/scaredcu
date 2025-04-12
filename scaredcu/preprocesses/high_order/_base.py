@@ -22,6 +22,17 @@ class _BaseCombination(Preprocess):
         self._set_frame('frame_2', frame_2)
 
 
+class _BaseCombinationHigh(_BaseCombination):
+
+    def __init__(self, precision='float32', **kwargs):
+        super().__init__(precision='float32', **kwargs)
+
+    def _set_frames(self, frames):
+        self.num_frames = len(frames)
+        for i, frame in enumerate(frames):
+            self._set_frame(f'frame_{i}', frame)
+
+
 class _CombinationPointToPoint(_BaseCombination):
 
     def _set_frames(self, frame_1, frame_2):
@@ -35,6 +46,28 @@ class _CombinationPointToPoint(_BaseCombination):
         frame_2 = ... if self.frame_2 is None else self.frame_2
         return self._operation(traces[:, frame_1].astype(dtype),
                                traces[:, frame_2].astype(dtype))
+
+
+class _CombinationPointToPointHigh(_BaseCombinationHigh):
+
+    def _set_frames(self, frames):
+        super()._set_frames(frames)
+        for i, frame in enumerate(frames[1:]):
+            if len(frame) != len(frames[i-1]):
+                raise PreprocessError('This combination mode needs all frames to be provided and of the same length.')
+
+    def __call__(self, traces):
+        dtype = max(traces.dtype, self.precision)
+        frames = []
+        for i in range(self.num_frames):
+            if getattr(self, f'frame_{i}') is not None:
+                frames.append(getattr(self, f'frame_{i}'))
+            else:
+                frames.append(...)
+        traces_frames = []
+        for frame in frames:
+            traces_frames.append(traces[:, frame].astype(dtype))
+        return self._operation(traces_frames)
 
 
 class _CombinationOfTwoFrames(_BaseCombination):
@@ -111,5 +144,24 @@ def _combination(operation, frame_1, frame_2=None, mode='full', distance=None, p
         res = _CombinationPointToPoint(frame_1=frame_1, frame_2=frame_2, precision=precision)
     else:
         res = _CombinationOfTwoFrames(frame_1=frame_1, frame_2=frame_2, precision=precision)
+    res._operation = operation
+    return res
+
+
+
+def _combination_high(operation, frames, mode='full', distance=None, precision='float32'):
+    if mode not in ['same', 'full']:
+        raise PreprocessError('Only same or full mode are available for combination preprocesses.')
+    if distance is not None and (mode == 'same' or len(frames) > 1):
+        raise PreprocessError('same mode or usage of multiple frames is incompatible with use of distance.')
+    if mode == 'same' and len(frames) == 1:
+        raise PreprocessError('same mode requires multiple frames.')
+
+    if distance is not None:
+        raise PreprocessError('distance is not available for high-order combination.')
+    elif mode == 'same':
+        res = _CombinationPointToPointHigh(precision=precision, frames=frames)
+    else:
+        raise PreprocessError('full mode is not available for high-order combination.')
     res._operation = operation
     return res

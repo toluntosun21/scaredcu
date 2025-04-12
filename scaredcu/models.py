@@ -233,6 +233,46 @@ class SignedHammingWeight(HammingWeight):
         return 'Signed Hamming Weight'
 
 
+class PackedHammingWeight(HammingWeight):
+    """Packed Hamming Weight leakage model class.
+
+    Instances of this class are callables which takes a data numpy array as input and returns it unchanged.
+
+    Args:
+        data (numpy.ndarray): numeric numpy ndarray
+
+    Returns:
+        (numpy.ndarray): unchanged input data numpy ndarray.
+
+    """
+    def __init__(self, expected_dtype='uint16'):
+        try:
+            expected_dtype = _cp.dtype(expected_dtype)
+        except TypeError:
+            raise ValueError(f'{expected_dtype} is not a valid dtype.')
+        if expected_dtype.kind != 'u':
+            expected_dtype = utils.s2u(expected_dtype)
+            self.s_dtype = expected_dtype
+        else:
+            self.s_dtype = None
+        super().__init__(expected_dtype=expected_dtype)
+
+    def _compute(self, data, axis):
+        if self.s_dtype is not None:
+            if data.dtype != self.s_dtype:
+                raise ValueError(f'Expected dtype for PackedHammingWeight input data is {self.s_dtype}, not {data.dtype}.')
+            else:
+                data = data.astype(self.expected_dtype)
+        return super()._compute(data[...,::2], axis) + super()._compute(data[...,1::2], axis)
+
+    @property
+    def max_data_value(self):
+        return super().max_data_value() * 2
+
+    def __str__(self):
+        return 'Packed Hamming Weight'
+
+
 class AbsoluteValue(Model):
     """Absolute Value leakage model class.
 
@@ -320,21 +360,21 @@ class OPFTable(Model):
         return self.table[data]
 
 
-class OPFTableWithBuild(OPFTable):
-    """Optimal Prediction Function Table.
+# class OPFTableWithBuild(OPFTable):
+#     """Optimal Prediction Function Table.
 
-    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
+#     Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
 
-    Args:
-        data (cupy.ndarray): numeric cupy ndarray
+#     Args:
+#         data (cupy.ndarray): numeric cupy ndarray
 
-    Returns:
-        (cupy.ndarray): unchanged input data cupy ndarray.
+#     Returns:
+#         (cupy.ndarray): unchanged input data cupy ndarray.
 
-    """
-    def __init__(self, d=2):
-        self.table = self.build(d)
+#     """
+#     def __init__(self, d=2):
+#         self.table = self.build(d)
 
-    @abc.abstractmethod
-    def build(self, d):
-        pass
+#     @abc.abstractmethod
+#     def build(self, d):
+#         pass

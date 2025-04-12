@@ -74,7 +74,7 @@ class ETSFormatReader(AbstractReader):
             if isinstance(self._traceset_indices, slice):
                 res = _to_cupy_array(self._metadatas[key][self._traceset_indices])
             else:
-                res = _cp.array([self._metadatas[key][i] for i in self._traceset_indices])
+                res = _cp.array([self._metadatas[key][i.get()] for i in self._traceset_indices])
         return _cast_to_str(res)
 
     @property
@@ -106,7 +106,7 @@ class ETSFormatReader(AbstractReader):
 
         if isinstance(frame, int):
             frame = _cp.array([frame])
-        elif isinstance(frame, list):
+        elif isinstance(frame, list) or isinstance(frame, range):
             frame = _cp.array(frame)
         if isinstance(frame, _cp.ndarray) and frames.is_array_equivalent_to_a_slice(frame):
             frame = frames.build_equivalent_slice(frame)
@@ -121,7 +121,7 @@ class ETSFormatReader(AbstractReader):
                 start = _cp.min(frame)
                 stop = _cp.max(frame) + 1
             frame = frame - start
-            return self._slice_traces(keys_tuple=(traces, slice(start, stop)), final_frame=frame)
+            return self._slice_traces(keys_tuple=(traces, slice(start.get(), stop.get())), final_frame=frame)
             # TODO: how to write a test case for the memory overhead optimization strategy below ?
             # ratio = (stop - start) / frame.size
             # if ratio > 100:
@@ -132,9 +132,9 @@ class ETSFormatReader(AbstractReader):
         traces, frame_slice = keys_tuple
         if final_frame is not None:
             if isinstance(traces, slice):
-                return self._h5_file[_TRACES_KEY][keys_tuple][:, final_frame]
+                return _to_cupy_array(self._h5_file[_TRACES_KEY][keys_tuple][:, final_frame.get()])
             if len(traces) > 0:
-                return _cp.vstack([_to_cupy_array(self._h5_file[_TRACES_KEY][t, frame_slice][final_frame]) for t in traces.get()])
+                return _cp.vstack([_to_cupy_array(self._h5_file[_TRACES_KEY][t, frame_slice][final_frame.get()]) for t in traces.get()])                                
         else:
             if isinstance(traces, slice):
                 return _to_cupy_array(self._h5_file[_TRACES_KEY][keys_tuple])

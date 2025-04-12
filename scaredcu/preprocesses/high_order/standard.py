@@ -1,10 +1,17 @@
-import cupy as _cu
+import cupy as _cp
 from ..first_order import CenterOn
-from ._base import _combination
+from ._base import _combination, _combination_high
+
+
+def _product_high(el):
+    t = el[0]*el[1]
+    for i in range(2, len(el)):
+        t = t * el[i]
+    return t
 
 
 def _product(el1, el2):
-    return (el1 * el2)
+    return _product_high([el1, el2])
 
 
 def _difference(el1, el2):
@@ -16,7 +23,7 @@ def _centered(function, mean, precision):
 
 
 def _absolute(function):
-    return lambda traces: _cu.absolute(function(traces))
+    return lambda traces: _cp.absolute(function(traces))
 
 
 class Difference:
@@ -90,6 +97,31 @@ class CenteredProduct(Product):
         return _centered(
             _combination(
                 _product, frame_1=frame_1, frame_2=frame_2, mode=mode, distance=distance, precision=precision
+            ), mean=mean, precision=precision)
+
+
+class CenteredProductHigh(Product):
+    """Centered product combination preprocess for high-order side-channel analysis.
+
+    Args:
+        frames (array of slice or iterable, default=...): first traces frame that will be taken.
+        mode (str, default='full'): Combination mode either `'full'` or `'same'`.
+            In `'same'` mode, each time-sample of `frame_1` will be combined with the corresponding time-sample in `frame_2`.
+            When using this mode, the two frames needs to be provided and of the same length.
+            In `'full'` mode, each point of `frame_1` is combined with full `frame_2` if it is provided;
+            otherwise, if `distance` is None, each point of `frame_1` is combined with the following points until the end of `frame_1`;
+            else with a subframe starting at the current point position in `frame_1` and of size equals to `distance`.
+        distance (integer, default=None): size of the frame to combine with each point of `frame_1`. This parameter is not available if `frame_2` is provided.
+        mean (numpy.ndarray, default=None): a mean array with compatible size with traces. If None, the mean of provided batch of traces is computed.
+        precision (numpy.dtype, default='float32'): optional parameter to define minimum numerical precision used to perform computation.
+            If input data has higher precision, it will be kept instead.
+
+    """
+
+    def __new__(cls, frames=[...], mean=None, precision='float32'):
+        return _centered(
+            _combination_high(
+                _product_high, frames, mode='same', distance=None, precision=precision
             ), mean=mean, precision=precision)
 
 

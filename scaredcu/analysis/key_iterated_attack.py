@@ -13,21 +13,24 @@ class KeyIteratedAttack:
         self.attack_args = attack_args
         self.attack_kwargs = attack_kwargs
 
-    def run(self, ths, preprocesses, step):
+    def run(self, ths, step, preprocesses=[], frame=None):
 
         for _ in tqdm(range(self.selection_function.num_steps)):
-                assert self.selection_function.done() == False
+            assert self.selection_function.done() == False
 
-                attack = self.attack_cls(*self.attack_args, selection_function=self.selection_function, **self.attack_kwargs)
+            attack = self.attack_cls(*self.attack_args, selection_function=self.selection_function, **self.attack_kwargs)
 
-                for i in range(0, len(ths), step):
-                    container = Container(ths[i:i + step], preprocesses=preprocesses)
-                    attack.run(container)
-
-                if hasattr(attack, 'convergence_traces') and attack.convergence_traces is not None:
-                    self.selection_function.save_scores(attack.convergence_traces)
+            for i in range(0, len(ths), step):
+                if frame is not None:
+                    container = Container(ths[i:i + step], preprocesses=preprocesses, frame=frame)
                 else:
-                    self.selection_function.save_scores(attack.scores)
-                self.selection_function.next()
+                    container = Container(ths[i:i + step], preprocesses=preprocesses)
+                attack.run(container)
+
+            if hasattr(attack, 'convergence_traces') and attack.convergence_traces is not None:
+                self.selection_function.save_scores(attack.convergence_traces)
+            else:
+                self.selection_function.save_scores(attack.scores)
+            self.selection_function.next()
 
         return self.selection_function.scores
