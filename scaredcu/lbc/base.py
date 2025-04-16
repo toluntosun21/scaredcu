@@ -45,28 +45,38 @@ class NTT:
 ####################################### BASE MULTIPLICATION ##################################################
 
 
-def _basemul_set_dtype(obj, reduction, reduce):
-    obj.reduction = reduction
-    if reduction is not None:
+def _basemul_set_params(obj, q, dtype, central, reduce, reduction):
+
+    if reduction is not None and q is not None:
+        raise ValueError('Either reduction or q can be provided.')
+    if reduce and reduction is None and q is None:
+        raise ValueError('Either reduction or q must be provided if reduce is True.')
+
+    if reduction is None and reduce:
         try:
-            obj.dtype = _cp.dtype(reduction.o_dtype)
+            _dtype = _cp.dtype(dtype)
         except TypeError:
-            raise ValueError(f'{obj.dtype} is not a valid dtype.')
-        if obj.dtype.kind == 'u':
-            obj.mult_dtype = utils.u22s(reduction.o_dtype)
-        else:
-            obj.mult_dtype = utils.s22s(reduction.o_dtype)
+            raise ValueError(f'{dtype} is not a valid dtype.')
+        if central and _dtype == 'u':
+            dtype = utils.u2s(dtype)
+        reduction = modop.ReductionQ2Q2(q, o_dtype=dtype) if central else modop.Reduction0Q(q, o_dtype=dtype)
+    obj.reduction = reduction
+
+    obj.dtype = obj.reduction.o_dtype if reduce else dtype
+    try:
+        _dtype = _cp.dtype(obj.dtype)
+    except TypeError:
+        raise ValueError(f'{obj.dtype} is not a valid dtype.')
+    if _dtype.kind == 'u':
+        obj.mult_dtype = utils.u22u(obj.dtype)
     else:
-        if reduce:
-            raise ValueError('Reduction must be provided if reduce is True.')
-        obj.dtype = _cp.dtype('int32')
-        obj.mult_dtype = utils.s22s('int32')
+        obj.mult_dtype = utils.s22s(obj.dtype)
 
 
 class BaseMul:
 
-    def __init__(self, reduction=None, reduce=True):
-        _basemul_set_dtype(self, reduction)
+    def __init__(self, reduction=None, reduce=True, q=None, dtype='uint32', central=False):
+        _basemul_set_params(self, q, dtype, central, reduce, reduction)
         self.reduce = reduce
 
     def basemul(self, a, b):
@@ -79,8 +89,8 @@ class BaseMul:
 
 class BaseMulIncomplete:
 
-    def __init__(self, reduction=None, reduce=True):
-        _basemul_set_dtype(self, reduction)
+    def __init__(self, reduction=None, reduce=True, q=None, dtype='uint32', central=False):
+        _basemul_set_params(self, q, dtype, central, reduce, reduction)
         self.reduce = reduce
 
     def _basemul_low(self, a, b, frame=None):

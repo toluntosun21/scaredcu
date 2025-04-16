@@ -30,7 +30,7 @@ def collect_traces_basemult(N, d=2, reduction=None, n=256, q=769, alpha=1, beta=
         model = SignedHammingWeight(expected_dtype=dtype)
 
     if reduction is None:
-        reduction = modop.Reduction_Q2Q2(q, dtype)
+        reduction = modop.ReductionQ2Q2(q, dtype)
 
     mult_dtype = utils.s22s(dtype)
 

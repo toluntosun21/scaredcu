@@ -35,7 +35,7 @@ class Reduction():
     def __str__(self):
         pass
 
-class Reduction_Q2Q2(Reduction):
+class ReductionQ2Q2(Reduction):
     
     def _reduce(self, data):
         data = data % self.q
@@ -48,7 +48,7 @@ class Reduction_Q2Q2(Reduction):
         return 'Basic [-q/2,q/2]'
 
 
-class Reduction_0Q(Reduction):
+class Reduction0Q(Reduction):
     
     def _reduce(self, data):
         return data % self.q
@@ -97,7 +97,7 @@ class MontgomeryReduction(Reduction):
         self.qinv = _cp.int32(qinv) if o_dtype == 'int16' else _cp.int64(qinv)
         self.mult_dtype = 'int32' if o_dtype == 'int16' else 'int64'
         self.B = 16 if o_dtype == 'int16' else 32
-        self.corr_red = None if not correction else Reduction_Q2Q2(q, o_dtype)
+        self.corr_red = None if not correction else ReductionQ2Q2(q, o_dtype)
         super().__init__(q, o_dtype)
 
     def _reduce(self, data):

@@ -24,9 +24,9 @@ class BaseMul(base.BaseMul):
 
     def __init__(self, central=True, reduce=True):
         if central:
-            super().__init__(reduction=modop.Reduction_Q2Q2(q, 'int32'), reduce=reduce)
+            super().__init__(reduction=modop.ReductionQ2Q2(q, 'int32'), reduce=reduce)
         else:
-            super().__init__(reduction=modop.Reduction_0Q(q, 'uint32'), reduce=reduce)
+            super().__init__(reduction=modop.Reduction0Q(q, 'uint32'), reduce=reduce)
 
 
 ####################################### MONTGOMERY #####################################################
