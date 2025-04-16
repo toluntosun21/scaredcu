@@ -45,23 +45,28 @@ class NTT:
 ####################################### BASE MULTIPLICATION ##################################################
 
 
+def _basemul_set_dtype(obj, reduction, reduce):
+    obj.reduction = reduction
+    if reduction is not None:
+        try:
+            obj.dtype = _cp.dtype(reduction.o_dtype)
+        except TypeError:
+            raise ValueError(f'{obj.dtype} is not a valid dtype.')
+        if obj.dtype.kind == 'u':
+            obj.mult_dtype = utils.u22s(reduction.o_dtype)
+        else:
+            obj.mult_dtype = utils.s22s(reduction.o_dtype)
+    else:
+        if reduce:
+            raise ValueError('Reduction must be provided if reduce is True.')
+        obj.dtype = _cp.dtype('int32')
+        obj.mult_dtype = utils.s22s('int32')
+
+
 class BaseMul:
 
-    def __init__(self, reduction, reduce=True):
-        if reduction is not None:
-            self.reduction = reduction
-            try:
-                self.dtype = _cp.dtype(reduction.o_dtype)
-            except TypeError:
-                raise ValueError(f'{self.dtype} is not a valid dtype.')
-            if self.dtype.kind == 'u':
-                self.mult_dtype = utils.u22s(reduction.o_dtype)
-            else:
-                self.mult_dtype = utils.s22s(reduction.o_dtype)
-        else:
-            self.dtype = _cp.dtype('int32')
-            self.mult_dtype = utils.s22s('int32')
-        
+    def __init__(self, reduction=None, reduce=True):
+        _basemul_set_dtype(self, reduction)
         self.reduce = reduce
 
     def basemul(self, a, b):
@@ -74,18 +79,16 @@ class BaseMul:
 
 class BaseMulIncomplete:
 
-    def __init__(self, reduction, reduce=True):
-        self.reduction = reduction
-        self.dtype = reduction.o_dtype
-        self.mult_dtype = utils.s22s(reduction.o_dtype)
+    def __init__(self, reduction=None, reduce=True):
+        _basemul_set_dtype(self, reduction)
         self.reduce = reduce
 
-    def basemul_low(self, a, b, frame=None):
+    def _basemul_low(self, a, b, frame=None):
         raise NotImplementedError()
 
-    def basemul_high(self, a, b):
-        t = a[...,::2].astype(self.dtype).astype(self.mult_dtype) * b[...,1::2].astype(self.dtype).astype(self.mult_dtype) + \
-            a[...,1::2].astype(self.dtype).astype(self.mult_dtype) * b[...,::2].astype(self.dtype).astype(self.mult_dtype)
+    def _basemul_high(self, a, b):
+        t = a[..., ::2].astype(self.dtype).astype(self.mult_dtype) * b[...,1::2].astype(self.dtype).astype(self.mult_dtype) + \
+            a[...,1::2].astype(self.dtype).astype(self.mult_dtype) * b[..., ::2].astype(self.dtype).astype(self.mult_dtype)
         if self.reduce:
             return self.reduction.reduce(t)
         else:
@@ -97,12 +100,10 @@ class BaseMulIncomplete:
 
         if (not low) or (not high):
             if low:
-                return self.basemul_low(a, b, frame=frame)
+                return self._basemul_low(a, b, frame=frame)
             else:
-                return self.basemul_high(a, b)
+                return self._basemul_high(a, b)
         else:
-            r = _cp.empty(shape=a.shape, dtype=self.dtype) if self.reduce else _cp.empty(shape=a.shape, dtype=self.mult_dtype)
-            r[...,::2] = self.basemul_low(a, b, frame=frame)
-            r[...,1::2] = self.basemul_high(a, b)
-            return r
-
+            low_res = self._basemul_low(a, b, frame=frame)
+            high_res = self._basemul_high(a, b)
+            return _cp.stack((low_res, high_res), axis=-1).reshape(*low_res.shape[:-1], -1)

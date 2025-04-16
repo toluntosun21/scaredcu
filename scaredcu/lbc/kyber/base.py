@@ -1,87 +1,44 @@
-from .. import modop
+from .. import modop, base
 import cupy as _cp
 
 
 q = 3329
 n = 256
 n_2 = 128
+root = 17
 
 du   = {512: 10, 768: 10, 1024: 11}
 eta1 = {512: 3 , 768: 3 , 1024: 2 }
 
 ########################### KYBER SIMPLE NTT #############################
 
-class NTT:
-
-    root = 17
-    root_inv = pow(root, -1, q)
-
-    @staticmethod
-    def _reverse_bits(n, width=7):    
-        b = '{:0{width}b}'.format(n, width=width)
-        return int(b[::-1], 2)
+class NTT(base.NTT):
 
     def __init__(self):
-        bit_reverse_table = [self._reverse_bits(i) for i in range(n_2)]
+        super().__init__(q=q, n=n, root=root, dtype='uint16')
 
-        self.ntt_mat = _cp.zeros((n_2,n_2),dtype='uint16')
-        for i in range(n_2):
-            for j in range(n_2):
-                self.ntt_mat[i,j] = pow(self.root, (2*bit_reverse_table[i] + 1)*j, q)
-
-        self.ntt_mat_inv = _cp.zeros((n_2,n_2), dtype='uint16')
-        inv2 = pow(n_2, -1, q)
-        for i in range(n_2):
-            for j in range(n_2):
-                self.ntt_mat_inv[j,i] = (pow(self.root_inv, (2*bit_reverse_table[i] + 1)*j, q) * inv2) % q
-
-    def ntt(self, a, central_red=False):
+    def ntt(self, a):
         temp = _cp.empty((256), dtype='uint16')
-        temp[::2] = (_cp.matmul(self.ntt_mat.astype('uint64'), a[::2].astype('int64')) % q).astype('uint16')
-        temp[1::2] = (_cp.matmul(self.ntt_mat.astype('uint64'), a[1::2].astype('int64')) % q).astype('uint16')
-        if central_red:
-            return (temp - (temp > q//2)*q).astype('int16')
-        else:
-            return temp
+        temp[ ::2] = super().ntt(a[ ::2])
+        temp[1::2] = super().ntt(a[1::2])
 
-    def ntt_inv(self, a, central_red=False):
+    def ntt_inv(self, a):
         temp = _cp.empty((256), dtype='uint16')
-        temp[::2] = (_cp.matmul(self.ntt_mat_inv.astype('uint64'), a[::2].astype('int64')) % q).astype('uint16')
-        temp[1::2] = (_cp.matmul(self.ntt_mat_inv.astype('uint64'), a[1::2].astype('int64')) % q).astype('uint16')
-        if central_red:
-            return (temp - (temp > q//2)*q).astype('int16')
-        else:
-            return temp
+        temp[ ::2] = super().ntt_inv(a[ ::2])
+        temp[1::2] = super().ntt_inv(a[1::2])
+        return temp
 
 
 ####################################### BASE MULTIPLICATION ##################################################
 
 
-class BaseMul:
+class BaseMul(base.BaseMulIncomplete):
 
-    def __init__(self, reduction):
-        self.reduction = reduction
-
-    def _basemul_low(self, a, b, frame=range(0,n_2)):
-        pass
-
-    def _basemul_high(self, a, b):
-        t = a[...,::2].astype(_cp.int16).astype(_cp.int32) * b[...,1::2].astype(_cp.int16).astype(_cp.int32) + a[...,1::2].astype(_cp.int16).astype(_cp.int32) * b[...,::2].astype(_cp.int16).astype(_cp.int32)
-        return self.reduction.reduce(t)
-
-    def basemul(self, a, b, frame=range(0,n_2), low=True, high=True):
-        if not low and not high:
-            raise ValueError('At least one of low coefficient or high coefficient must be selected')
-
-        if (not low) or (not high):
-            if low:
-                return self._basemul_low(a, b, frame=frame)
-            else:
-                return self._basemul_high(a, b)
+    def __init__(self, central=True, reduce=True):
+        if central:
+            super().__init__(reduction=modop.Reduction_Q2Q2(q, 'int16'), reduce=reduce)
         else:
-            low_res = self._basemul_low(a, b, frame=frame)
-            high_res = self._basemul_high(a, b)
-            return _cp.stack((low_res, high_res), axis=-1).reshape(*low_res.shape[:-1], -1)
+            super().__init__(reduction=modop.Reduction_0Q(q, 'uint16'), reduce=reduce)
 
 ####################################### PLANTARD #####################################################
 
@@ -101,6 +58,9 @@ class BaseMulPlant(BaseMul):
         t = a[...,::2].astype(_cp.int16).astype(_cp.int32) * b[...,::2].astype(_cp.int16).astype(_cp.int32) + a[...,1::2].astype(_cp.int16).astype(_cp.int32) * t0.astype(_cp.int32)
         return self.reduction.reduce(t)
 
+    def basemul(self, a, b, frame=range(0,n_2), low=True, high=True):
+        super().basemul(a, b, frame=frame, low=low, high=high)
+
 
 ####################################### MONTGOMERY #####################################################
 
@@ -110,16 +70,18 @@ class BaseMulPlant(BaseMul):
 
 class BaseMulMonty(BaseMul):
 
-    def __init__(self):
+    def __init__(self, correction=False):
         _zetas = [2226, -2226, 430, -430, 555, -555, 843, -843, 2078, -2078, 871, -871, 1550, -1550, 105, -105, 422, -422, 587, -587, 177, -177, 3094, -3094, 3038, -3038, 2869, -2869, 1574, -1574, 1653, -1653, 3083, -3083, 778, -778, 1159, -1159, 3182, -3182, 2552, -2552, 1483, -1483, 2727, -2727, 1119, -1119, 1739, -1739, 644, -644, 2457, -2457, 349, -349, 418, -418, 329, -329, 3173, -3173, 3254, -3254, 817, -817, 1097, -1097, 603, -603, 610, -610, 1322, -1322, 2044, -2044, 1864, -1864, 384, -384, 2114, -2114, 3193, -3193, 1218, -1218, 1994, -1994, 2455, -2455, 220, -220, 2142, -2142, 1670, -1670, 2144, -2144, 1799, -1799, 2051, -2051, 794, -794, 1819, -1819, 2475, -2475, 2459, -2459, 478, -478, 3221, -3221, 3021, -3021, 996, -996, 991, -991, 958, -958, 1869, -1869, 1522, -1522, 1628, -1628]
         self.zetas = _cp.array(_zetas, dtype='int16')
-        super().__init__(reduction=modop.MontgomeryReduction(q, 3327, 'int16'))
+        super().__init__(reduction=modop.MontgomeryReduction(q=q, qinv=3327, correction=correction, o_dtype='int16'))
 
     def _basemul_low(self, a, b, frame=range(0,n_2)):
         t0 = self.reduction.reduce(a[...,1::2].astype(_cp.int16).astype(_cp.int32) * b[...,1::2].astype(_cp.int16).astype(_cp.int32))
         t = a[...,::2].astype(_cp.int16).astype(_cp.int32) * b[...,::2].astype(_cp.int16).astype(_cp.int32) + self.zetas[frame] * t0.astype(_cp.int16).astype(_cp.int32)
         return self.reduction.reduce(t)
 
+    def basemul(self, a, b, frame=range(0,n_2), low=True, high=True):
+        super().basemul(a, b, frame=frame, low=low, high=high)
 
 
 ####################################### CIPHERTEXT AND SK DECODING ############################################

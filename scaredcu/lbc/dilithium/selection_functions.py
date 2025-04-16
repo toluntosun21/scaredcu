@@ -1,17 +1,17 @@
-from .. import selection_functions, modop
+from .. import selection_functions
 from . import base as dilithium
 
 
 class BaseMul_Q2Q2(selection_functions._BaseMulBase):
 
-    def __new__(cls, *args, **kwargs):
-        super().__new__(cls, dilithium.BaseMul(central=True), None, *args, **kwargs)
+    def __new__(cls, *args, reduce=True, **kwargs):
+        super().__new__(cls, dilithium.BaseMul(central=True, reduce=reduce), None, *args, **kwargs)
 
 
 class BaseMul_0Q(selection_functions._BaseMulBase):
 
-    def __new__(cls, *args, **kwargs):
-        super().__new__(cls, dilithium.BaseMul(central=False), None, *args, **kwargs)
+    def __new__(cls, *args, reduce=True, **kwargs):
+        super().__new__(cls, dilithium.BaseMul(central=False, reduce=reduce), None, *args, **kwargs)
 
 
 class BaseMulMonty(selection_functions._BaseMulBase):
