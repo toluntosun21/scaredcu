@@ -9,18 +9,17 @@ from . import base
 class _BaseMul:
 
     def __init__(self, basemul_imp=None, reduction=None, reduce=True, words=None):
-        if basemul_imp is None and (reduction is None and reduce):
-            raise ValueError('Either basemul_imp or reduction must be provided.')
+
         self.reduce = reduce
         self.words = words
         if basemul_imp is None:
-            basemul_imp = base.BaseMul(reduction, reduce)
+            self.basemul_imp = base.BaseMul(reduction, reduce)
         else:
-            self.basemul_imp = basemul_imp()
+            self.basemul_imp = basemul_imp
 
     def __call__(self, c, guesses):
         c_ = c[:,:] if self.words is None else c[:, self.words]
-        return self.basemul_imp.basemul(c_[:, _cp.newaxis, _cp.newaxis, :], guesses[_cp.newaxis, :, _cp.newaxis])
+        return self.basemul_imp.basemul(c_[:, _cp.newaxis, :], guesses[_cp.newaxis, :, _cp.newaxis])
 
 
 class _BaseMulBase:
@@ -28,8 +27,13 @@ class _BaseMulBase:
     """
 
     def __new__(cls, basemul_imp=None, reduction=None, reduce=True, words=None, ciphertext_tag='c', key_tag='s', neg_trick=False, guesses=None):
+        if basemul_imp is None and (reduction is None and reduce):
+            raise ValueError('Either basemul_imp or reduction must be provided.')
         if guesses is None:
-            guesses = reduction.reduce(_cp.arange(reduction.q, dtype=reduction.o_dtype)) if not neg_trick else reduction.reduce(_cp.arange(reduction.q//2 + 1, dtype=reduction.o_dtype))
+            if basemul_imp is None and reduction is None:
+                raise ValueError('Either basemul_imp or reduction must be provided.')
+            temp_reduction = basemul_imp.reduction if basemul_imp is not None else reduction
+            guesses = _cp.arange(temp_reduction.q, dtype=temp_reduction.o_dtype) if not neg_trick else _cp.arange(temp_reduction.q//2 + 1, dtype=temp_reduction.o_dtype)
         return _decorated_selection_function(
             _AttackSelectionFunctionWrapped,
             _BaseMul(basemul_imp=basemul_imp, reduction=reduction, reduce=reduce, words=words),

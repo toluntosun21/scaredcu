@@ -33,8 +33,8 @@ class BaseMul(base.BaseMul):
 
 class BaseMulMonty(base.BaseMul):
 
-    def __init__(self):
-        super().__init__(reduction=modop.MontgomeryReduction(q, -58728449, 'int32'))
+    def __init__(self, correction=False):
+        super().__init__(reduction=modop.MontgomeryReduction(q=q, qinv=-58728449, correction=correction, o_dtype='int32'))
 
 
 

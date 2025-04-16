@@ -91,12 +91,13 @@ class PlantardReduction(Reduction):
 
 class MontgomeryReduction(Reduction):
 
-    def __init__(self, q, qinv, o_dtype='int16'):
+    def __init__(self, q, qinv, correction=False, o_dtype='int16'):
         if o_dtype != 'int16' and o_dtype != 'int32':
             raise ValueError('Montgomery reduction only supports int16 and int32 output.') 
         self.qinv = _cp.int32(qinv) if o_dtype == 'int16' else _cp.int64(qinv)
         self.mult_dtype = 'int32' if o_dtype == 'int16' else 'int64'
         self.B = 16 if o_dtype == 'int16' else 32
+        self.corr_red = None if not correction else Reduction_Q2Q2(q, o_dtype)
         super().__init__(q, o_dtype)
 
     def _reduce(self, data):
@@ -104,7 +105,12 @@ class MontgomeryReduction(Reduction):
         t1 = t.astype(self.o_dtype).astype(self.mult_dtype) * self.qinv
         t1 = t1.astype(self.o_dtype).astype(self.mult_dtype) * self.q
         t += t1
-        return (t >> self.B)
+        t2 = (t >> self.B)
+        if self.corr_red is not None:
+            return self.corr_red.reduce(t2)
+        else:
+            return t2
+
 
     def _id(self):
         return RR_Q2Q2
