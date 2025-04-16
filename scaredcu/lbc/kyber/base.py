@@ -8,6 +8,9 @@ q = 3329
 n = 256
 n_2 = 128
 
+du   = {512: 10, 768: 10, 1024: 11}
+eta1 = {512: 3 , 768: 3 , 1024: 2 }
+
 ########################### KYBER SIMPLE NTT #############################
 
 class NTT:
@@ -118,3 +121,72 @@ class BaseMulMonty(BaseMul):
         t0 = self.reduction.reduce(a[...,1::2].astype(_cp.int16).astype(_cp.int32) * b[...,1::2].astype(_cp.int16).astype(_cp.int32))
         t = a[...,::2].astype(_cp.int16).astype(_cp.int32) * b[...,::2].astype(_cp.int16).astype(_cp.int32) + self.zetas[frame] * t0.astype(_cp.int16).astype(_cp.int32)
         return self.reduction.reduce(t)
+
+
+
+####################################### CIPHERTEXT AND SK DECODING ############################################
+
+
+
+def _bytes_to_bits(input_bytes):
+    bit_string = ''.join(format(byte, '08b')[::-1] for byte in input_bytes)
+    return list(map(int, list(bit_string)))
+
+
+def decode(byte_arr, l):
+    poly = _cp.zeros(n, dtype='uint16')
+    B = _bytes_to_bits(byte_arr)
+    for i in range(n):
+        poly[i] = sum([B[i * l + j] * 2 ** j for j in range(l)])
+    return poly
+
+def decode_kyber512_du(byte_arr):
+    return decode(byte_arr, du[512])
+
+def decode_kyber768_du(byte_arr):
+    return decode(byte_arr, du[768])
+
+def decode_kyber1024_du(byte_arr):
+    return decode(byte_arr, du[1024])
+
+
+def decode_sk(byte_arr):
+    return decode(byte_arr, 12)
+
+
+def _round_half_up(x):
+    out = x.copy()
+    mask = (out >= 0)
+    out[mask] = _cp.floor(out[mask] + 0.5)
+    out[~mask] = _cp.ceil(out[~mask] - 0.5)
+    return out
+
+
+def decompress(poly, d):
+    return _round_half_up(poly * (q / (1 << d))).astype('uint16')
+
+def kyber512_decompress_du(poly):
+    return decompress(poly, du[512])
+
+def kyber768_decompress_du(poly):
+    return decompress(poly, du[768])
+
+def kyber1024_decompress_du(poly):
+    return decompress(poly, du[1024])
+
+
+def poly_unpack_decompress_du(byte_arr, du):
+    poly_compressed_bytes = (du*n) // 8
+    assert (len(byte_arr)) == poly_compressed_bytes
+    poly = decode(byte_arr, du)
+    poly_d = decompress(poly, du)
+    return poly_d
+
+def kyber512_poly_unpack_decompress_du(byte_arr):
+    return poly_unpack_decompress_du(byte_arr, du[512])
+
+def kyber768_poly_unpack_decompress_du(byte_arr):
+    return poly_unpack_decompress_du(byte_arr, du[768])
+
+def kyber1024_poly_unpack_decompress_du(byte_arr):
+    return poly_unpack_decompress_du(byte_arr, du[1024])

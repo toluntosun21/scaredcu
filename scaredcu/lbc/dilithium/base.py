@@ -31,7 +31,7 @@ class BaseMul(base.BaseMul):
 
 ####################################### MONTGOMERY #####################################################
 
-class BaseMulMonty(BaseMul):
+class BaseMulMonty(base.BaseMul):
 
     def __init__(self):
         super().__init__(reduction=modop.MontgomeryReduction(q, -58728449, 'int32'))
