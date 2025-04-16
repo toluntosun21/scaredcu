@@ -1,6 +1,7 @@
 from . import _utils as utils
 import cupy as _cp
 import abc
+import math
 import numba
 
 _HW_LUT = _cp.array([0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
@@ -251,8 +252,8 @@ class PackedHammingWeight(HammingWeight):
         except TypeError:
             raise ValueError(f'{expected_dtype} is not a valid dtype.')
         if expected_dtype.kind != 'u':
-            expected_dtype = utils.s2u(expected_dtype)
             self.s_dtype = expected_dtype
+            expected_dtype = utils.s2u(expected_dtype)
         else:
             self.s_dtype = None
         super().__init__(expected_dtype=expected_dtype)
@@ -295,6 +296,58 @@ class AbsoluteValue(Model):
 
     def __str__(self):
         return 'Absolute Value'
+
+
+class Sin(Model):
+    """Sinus leakage model class.
+
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
+
+    Args:
+        data (cupy.ndarray): numeric cupy ndarray
+
+    Returns:
+        (cupy.ndarray): unchanged input data cupy ndarray.
+
+    """
+    def __init__(self, q):
+        self.q = q
+
+    def _compute(self, data, axis):
+        return _cp.sin((2*math.pi*data)/self.q)
+
+    @property
+    def max_data_value(self):
+        return 1
+
+    def __str__(self):
+        return 'Sinus'
+
+
+class Cos(Model):
+    """Cosinus leakage model class.
+
+    Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
+
+    Args:
+        data (cupy.ndarray): numeric cupy ndarray
+
+    Returns:
+        (cupy.ndarray): unchanged input data cupy ndarray.
+
+    """
+    def __init__(self, q):
+        self.q = q
+
+    def _compute(self, data, axis):
+        return _cp.cos((2*math.pi*data)/self.q)
+
+    @property
+    def max_data_value(self):
+        return 1
+
+    def __str__(self):
+        return 'Cosinus'
 
 
 class ShiftRight(Model):
@@ -358,23 +411,3 @@ class OPFTable(Model):
 
     def _compute(self, data, axis):
         return self.table[data]
-
-
-# class OPFTableWithBuild(OPFTable):
-#     """Optimal Prediction Function Table.
-
-#     Instances of this class are callables which takes a data cupy array as input and returns it unchanged.
-
-#     Args:
-#         data (cupy.ndarray): numeric cupy ndarray
-
-#     Returns:
-#         (cupy.ndarray): unchanged input data cupy ndarray.
-
-#     """
-#     def __init__(self, d=2):
-#         self.table = self.build(d)
-
-#     @abc.abstractmethod
-#     def build(self, d):
-#         pass
