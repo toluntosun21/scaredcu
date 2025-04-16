@@ -1,9 +1,8 @@
 from scaredcu.selection_functions.base import _decorated_selection_function, _AttackSelectionFunctionWrapped
 from scaredcu.selection_functions.iterated import _IteratedAttackSelectionFunctionWrapped
 from .. import selection_functions
-import scaredcu._utils as util
 from . import base as dilithium
-import cupy as _cu
+import cupy as _cp
 import numpy as _np
 
 
@@ -16,7 +15,7 @@ class _BaseMul(selection_functions._BaseMul):
 
     def __call__(self, c, guesses):
         c_ = c[:,:] if self.words is None else c[:, self.words]
-        return self.basemul_imp.basemul(c_[:, _cu.newaxis, _cu.newaxis, :], guesses[_cu.newaxis, :, _cu.newaxis], self.words, self.low, self.high)
+        return self.basemul_imp.basemul(c_[:, _cp.newaxis, _cp.newaxis, :], guesses[_cp.newaxis, :, _cp.newaxis], self.words, self.low, self.high)
 
 
 class BaseMul:

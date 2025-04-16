@@ -10,33 +10,35 @@ class NTT:
         b = '{:0{width}b}'.format(n, width=width)
         return int(b[::-1], 2)
 
-    def __init__(self, reduction, n, root):
-        self.reduction = reduction
-        self.q = reduction.q
+    def __init__(self, q, n, root, dtype='int32'):
+        self.q = q
         self.n = n
         self.root = root
         self.root_inv = pow(root, -1, self.q)
         self.logn = int(math.log2(n))
+        self.dtype = dtype
         bit_reverse_table = [self._reverse_bits(i, self.logn) for i in range(self.n)]
 
-        self.ntt_mat = _cp.zeros((self.n,self.n),dtype='uint16')
+        self._ntt_mat = _cp.zeros((self.n, self.n), dtype=dtype)
         for i in range(self.n):
             for j in range(self.n):
-                self.ntt_mat[i,j] = pow(self.root, (2*bit_reverse_table[i] + 1)*j, self.q)
+                self._ntt_mat[i,j] = pow(self.root, (2*bit_reverse_table[i] + 1)*j, self.q)
 
-        self.ntt_mat_inv = _cp.zeros((self.n,self.n), dtype='uint16')
+        self._ntt_mat_inv = _cp.zeros((self.n,self.n), dtype=dtype)
         inv2 = pow(self.n, -1, self.q)
         for i in range(self.n):
             for j in range(self.n):
-                self.ntt_mat_inv[j,i] = (pow(self.root_inv, (2*bit_reverse_table[i] + 1)*j, self.q) * inv2) % self.q
+                self._ntt_mat_inv[j,i] = (pow(self.root_inv, (2*bit_reverse_table[i] + 1)*j, self.q) * inv2) % self.q
 
     def ntt(self, a):
-        t = (_cp.matmul(self.ntt_mat.astype('uint64'), a[::2].astype('int64')) % self.q).astype('uint16')
-        return self.reduction.reduce(t)
+        a_ = a % self.q
+        t = (_cp.matmul(self._ntt_mat.astype('uint64'), a_.astype('uint64')) % self.q).astype(self.dtype)
+        return t
 
     def ntt_inv(self, a):
-        t = (_cp.matmul(self.ntt_mat_inv.astype('uint64'), a[::2].astype('int64')) % self.q).astype('uint16')
-        return self.reduction.reduce(t)
+        a_ = a % self.q
+        t = (_cp.matmul(self._ntt_mat_inv.astype('uint64'), a_.astype('uint64')) % self.q).astype(self.dtype)
+        return t
 
 
 
