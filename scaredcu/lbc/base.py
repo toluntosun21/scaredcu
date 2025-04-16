@@ -10,7 +10,7 @@ class NTT:
         b = '{:0{width}b}'.format(n, width=width)
         return int(b[::-1], 2)
 
-    def __init__(self, q, n, root, dtype='int32'):
+    def __init__(self, q, n, root, dtype='uint32'):
         self.q = q
         self.n = n
         self.root = root

@@ -14,7 +14,7 @@ tau = {2: 39, 3:49, 5:60}
 class NTT(base.NTT):
 
     def __init__(self):
-        super().__init__(q=q, n=n, root=root, dtype='int32')
+        super().__init__(q=q, n=n, root=root, dtype='uint32')
 
 
 ####################################### BASE MULTIPLICATION ##################################################
@@ -26,7 +26,7 @@ class BaseMul(base.BaseMul):
         if central:
             super().__init__(reduction=modop.Reduction_Q2Q2(q, 'int32'), reduce=True)
         else:
-            super().__init__(reduction=modop.Reduction_0Q(q, 'int32'), reduce=True)
+            super().__init__(reduction=modop.Reduction_0Q(q, 'uint32'), reduce=True)
 
 
 ####################################### MONTGOMERY #####################################################
