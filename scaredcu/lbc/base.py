@@ -48,9 +48,20 @@ class NTT:
 class BaseMul:
 
     def __init__(self, reduction, reduce=True):
-        self.reduction = reduction
-        self.dtype = reduction.o_dtype
-        self.mult_dtype = utils.s22s(reduction.o_dtype)
+        if reduction is not None:
+            self.reduction = reduction
+            try:
+                self.dtype = _cp.dtype(reduction.o_dtype)
+            except TypeError:
+                raise ValueError(f'{self.dtype} is not a valid dtype.')
+            if self.dtype.kind == 'u':
+                self.mult_dtype = utils.u22s(reduction.o_dtype)
+            else:
+                self.mult_dtype = utils.s22s(reduction.o_dtype)
+        else:
+            self.dtype = _cp.dtype('int32')
+            self.mult_dtype = utils.s22s('int32')
+        
         self.reduce = reduce
 
     def basemul(self, a, b):

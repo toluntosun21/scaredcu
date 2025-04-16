@@ -1,7 +1,5 @@
 from .. import modop
-import abc
 import cupy as _cp
-import math
 
 
 q = 3329
