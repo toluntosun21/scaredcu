@@ -21,12 +21,12 @@ class _BaseMulCpNp(ABC):
 
     @classmethod
     @abstractmethod
-    def cpnp():
+    def cpnp(cls):
         pass
 
     @classmethod
     @abstractmethod
-    def attack_sel_cls():
+    def attack_sel_cls(cls):
         pass
 
     @classmethod
@@ -53,22 +53,22 @@ class _BaseMulCpNp(ABC):
 class _BaseMulBase(_BaseMulCpNp):
 
     @classmethod
-    def cpnp():
+    def cpnp(cls):
         return _cp
 
     @classmethod
-    def attack_sel_cls():
+    def attack_sel_cls(cls):
         return _AttackSelectionFunctionWrapped
 
 
 class _BaseMulIteratedBase(_BaseMulCpNp):
 
     @classmethod
-    def cpnp():
+    def cpnp(cls):
         return _np
 
     @classmethod
-    def attack_sel_cls():
+    def attack_sel_cls(cls):
         return _IteratedAttackSelectionFunctionWrapped
 
 
@@ -79,11 +79,11 @@ class _BaseMulIteratedBase(_BaseMulCpNp):
 class _BaseMulIncomplete(_BaseMul):
 
     def __init__(self, basemul_imp, words=None, low=False, high=True):
+        super().__init__(basemul_imp, words)
         self.words_flat = _cp.repeat(self.words, 2) * 2
         self.words_flat[1::2] += 1
         self.low = low
         self.high = high
-        super().__init__(basemul_imp, words)
 
     def __call__(self, c, guesses):
         c_ = c[:,:] if self.words_flat is None else c[:, self.words_flat]
@@ -99,7 +99,7 @@ class _BaseMulIncompleteCpNp(_BaseMulCpNp):
         if mode not in ['same', 'full']:
             raise ValueError('Only same or full mode are available for combination preprocesses.')
         if guesses_low is None:
-            guesses_low = super().get_or_create_guesses(basemul_imp, False, cpnp)
+            guesses_low = super().get_or_create_guesses(basemul_imp, False)
         if guesses_high is None:
             guesses_high = guesses_low if not neg_trick else guesses_low[:basemul_imp.reduction.q//2 + 1]
         if mode == 'same':
@@ -128,22 +128,22 @@ class _BaseMulIncompleteCpNp(_BaseMulCpNp):
 class _BaseMulIncompleteBase(_BaseMulIncompleteCpNp):
 
     @classmethod
-    def cpnp():
+    def cpnp(cls):
         return _cp
 
     @classmethod
-    def attack_sel_cls():
+    def attack_sel_cls(cls):
         return _AttackSelectionFunctionWrapped
 
 
 class _BaseMulIncompleteIteratedBase(_BaseMulIncompleteCpNp):
 
     @classmethod
-    def cpnp():
+    def cpnp(cls):
         return _np
 
     @classmethod
-    def attack_sel_cls():
+    def attack_sel_cls(cls):
         return _IteratedAttackSelectionFunctionWrapped
 
 
