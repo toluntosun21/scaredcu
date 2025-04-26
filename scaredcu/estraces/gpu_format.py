@@ -1,4 +1,4 @@
-import cupy as _cu
+import cupy as _cp
 
 from estraces.traces.abstract_reader import AbstractReader
 from estraces.traces.trace_header_set import build_trace_header_set
@@ -35,13 +35,13 @@ class RAMReader(AbstractReader):
 
     @staticmethod
     def _test_nd_arrays(samples, kwargs_dict):
-        if not isinstance(samples, _cu.ndarray):
-            raise TypeError(f'`samples` argument must be a {_cu.ndarray}')
+        if not isinstance(samples, _cp.ndarray):
+            raise TypeError(f'`samples` argument must be a {_cp.ndarray}')
         if samples.ndim != 2:
             raise TypeError('`samples` argument must be a 2-dimensions ndarray')
         for key in kwargs_dict.keys():
-            if not isinstance(kwargs_dict[key], _cu.ndarray):
-                raise TypeError(f'`{key}` argument must be a {_cu.ndarray}')
+            if not isinstance(kwargs_dict[key], _cp.ndarray):
+                raise TypeError(f'`{key}` argument must be a {_cp.ndarray}')
 
     @staticmethod
     def _test_shapes_compatibility(samples, kwargs_dict):
