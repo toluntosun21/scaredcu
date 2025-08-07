@@ -48,10 +48,10 @@ def get_kernel_code_0(num_samples, num_partitions, num_data_cols, log_samples_di
             }}
         }}
         
-        float sum_val;                                                     
+        {result_dtype} sum_val;                                                     
 
         for (int sample_idx = 0; sample_idx < samples_cache; sample_idx++) {{
-            float sum_result = 0;
+            {result_dtype} sum_result = 0;
             int sample_id = sample_idy * samples_cache + sample_idx;
             if (sample_id >= num_samples) continue;
             for (int data_idy = 0; data_idy < num_partitions; data_idy++) {{
@@ -102,7 +102,7 @@ def get_kernel_code_1(num_samples, num_partitions, num_data_cols, partition_dtyp
             for (int data_idy = 0; data_idy < num_partitions; data_idy++) {{
                 float counter = self_counters[data_idx * num_partitions + data_idy];
                 if (counter > 0) {{
-                    float sum_val = self_sum[(sample_idx * num_partitions + data_idy) * num_data_cols + data_idx];
+                    {result_dtype} sum_val = self_sum[(sample_idx * num_partitions + data_idy) * num_data_cols + data_idx];
                     sum_result += sum_val * (sum_val / counter);
                 }}
             }}
@@ -161,7 +161,6 @@ class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
 
 
     def _initialize_accumulators(self):
-        self.max_traces = 400000
         self.data = None
         self.traces = None
         self.counters = _cp.zeros((self._data_words, len(self.partitions)), dtype='float32')

@@ -48,7 +48,7 @@ class NTT:
 def _basemul_set_params(obj, q, dtype, central, reduce, reduction):
 
     if reduction is not None and q is not None:
-        raise ValueError('Either reduction or q can be provided.')
+        raise ValueError('Exactly one of reduction or q must be provided.')
     if reduce and reduction is None and q is None:
         raise ValueError('Either reduction or q must be provided if reduce is True.')
 

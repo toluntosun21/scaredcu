@@ -56,11 +56,10 @@ def collect_traces_basemult(N, d=2, reduction=None, n=256, q=769, alpha=1, beta=
 
         s_[0] = reduction.reduce(s - masks_sum) if d > 1 else s
 
-
-        res_mult_unmasked = (c.astype(mult_dtype) * s.astype(mult_dtype)).sum(axis=1)
+        res_mult_unmasked = (_cp.roll(c, shift=1, axis=1).astype(mult_dtype) * s.astype(mult_dtype)).sum(axis=1)
         res_red_unmasked = reduction.reduce(res_mult_unmasked)
 
-        res_mult_masked = ((c.astype(mult_dtype) * s_.astype(mult_dtype))).sum(axis=2)
+        res_mult_masked = ((_cp.roll(c, shift=1, axis=1).astype(mult_dtype) * s_.astype(mult_dtype))).sum(axis=2)
         res_red_masked = reduction.reduce(res_mult_masked)
 
         assert (((res_red_masked.sum(axis=0)) % q) == (res_red_unmasked % q)).all()

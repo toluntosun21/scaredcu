@@ -20,5 +20,5 @@ class OPFTableReduction(OPFTableReductionBuilder, OPFTable):
         if not isinstance(base_model, Model):
             raise ValueError("base_model must be an instance of Model")
         OPFTableReductionBuilder.__init__(self, base_model, reduction, fix0=fix0, save=save, load=load, K=K)
-        table = self._build_table(d)
+        table = self.build(d)
         OPFTable.__init__(self, table)

@@ -109,7 +109,7 @@ class MMIADistinguisherMixin(MIADistinguisherMixin):
         for data_idx in range(start, data.shape[1], stride):
             for trace_idx in range(traces.shape[0]):
                 data_idy = data[trace_idx, data_idx]
-                for sample_idx in range(traces.shape[1]):
+                for sample_idx in range(traces.shape[1] - offset):
                     x1 = traces[trace_idx, sample_idx]
                     if x1 >= min_edgex1 and x1 < max_edgex1:
                         bin_idx1 = int((x1 - min_edgex1) * normx1)
@@ -134,8 +134,7 @@ class MMIADistinguisherMixin(MIADistinguisherMixin):
                             bin_idx2 = 0
                     else:
                         continue
-                    for data_idx in range(data.shape[1]):
-                        self_accumulators[sample_idx, bin_idx1, bin_idx2, data_idy, data_idx] += 1
+                    self_accumulators[sample_idx, bin_idx1, bin_idx2, data_idy, data_idx] += 1
 
 
     def _accumulate(self, traces, data):
