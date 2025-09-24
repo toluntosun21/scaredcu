@@ -26,7 +26,6 @@ class KeyIteratedAttack:
                 else:
                     container = Container(ths[i:i + step], preprocesses=preprocesses)
                 attack.run(container)
-
             if hasattr(attack, 'convergence_traces') and attack.convergence_traces is not None:
                 self.selection_function.save_scores(attack.convergence_traces)
             else:

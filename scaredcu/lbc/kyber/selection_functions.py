@@ -29,22 +29,22 @@ class BaseMulPlant(selection_functions._BaseMulIncompleteBase):
 class BaseMulQ2Q2Iterated(selection_functions._BaseMulIncompleteIteratedBase):
 
     def __new__(cls, cp_step, *args, reduce=True, **kwargs):
-        return super().__new__(cls, cp_step, kyber.BaseMul(central=True, reduce=reduce), *args, **kwargs)
+        return super().__new__(cls, kyber.BaseMul(central=True, reduce=reduce), *args, cp_step=cp_step, **kwargs)
 
 
 class BaseMul0QIterated(selection_functions._BaseMulIncompleteIteratedBase):
 
     def __new__(cls, cp_step, *args, reduce=True, **kwargs):
-        return super().__new__(cls, cp_step, kyber.BaseMul(central=False, reduce=reduce), *args, **kwargs)
+        return super().__new__(cls, kyber.BaseMul(central=False, reduce=reduce), *args, cp_step=cp_step, **kwargs)
 
 
 class BaseMulMontyIterated(selection_functions._BaseMulIncompleteIteratedBase):
 
     def __new__(cls, cp_step, *args, correction=False, **kwargs):
-        return super().__new__(cls, cp_step, kyber.BaseMulMonty(correction), *args, **kwargs)
+        return super().__new__(cls, kyber.BaseMulMonty(correction), *args, cp_step=cp_step, **kwargs)
 
 
 class BaseMulPlantIterated(selection_functions._BaseMulIncompleteIteratedBase):
 
     def __new__(cls, cp_step, *args, **kwargs):
-        return super().__new__(cls, cp_step, kyber.BaseMulPlant(), *args, **kwargs)
+        return super().__new__(cls, kyber.BaseMulPlant(), *args, cp_step=cp_step, **kwargs)

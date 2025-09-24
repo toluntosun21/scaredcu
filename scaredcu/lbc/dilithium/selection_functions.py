@@ -23,13 +23,13 @@ class BaseMulMonty(selection_functions._BaseMulBase):
 class BaseMulQ2Q2Iterated(selection_functions._BaseMulIteratedBase):
 
     def __new__(cls, cp_step, *args, **kwargs):
-        return super().__new__(cls, cp_step, dilithium.BaseMul(central=True), *args, **kwargs)
+        return super().__new__(cls, dilithium.BaseMul(central=True), *args, cp_step=cp_step, **kwargs)
 
 
 class BaseMul0QIterated(selection_functions._BaseMulIteratedBase):
 
     def __new__(cls, cp_step, *args, **kwargs):
-        return super().__new__(cls, cp_step, dilithium.BaseMul(central=False), *args, **kwargs)
+        return super().__new__(cls, dilithium.BaseMul(central=False), *args, cp_step=cp_step, **kwargs)
 
 
 class BaseMulMontyIterated(selection_functions._BaseMulIteratedBase):
