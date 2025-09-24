@@ -1,6 +1,6 @@
 from .partitioned import PartitionedDistinguisherBase, _PartitionnedDistinguisherBaseMixin
-import cupy as _cu
-from numba import cuda as _cuda
+import cupy as _cp
+from numba import cuda as _cpda
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,14 +12,14 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
     def _memory_usage(self, traces, data):
         self._init_partitions(data)
         self._init_bin_edges(traces)
-        dtype_size = _cu.dtype(self.precision).itemsize
+        dtype_size = _cp.dtype(self.precision).itemsize
         return 3 * dtype_size * data.shape[1] * traces.shape[1] * len(self.partitions) * self.bins_number
 
     def _init_bin_edges(self, traces):
         if self.bin_edges is None:
             logger.info('Start setting y_window and bin_edges.')
-            self.y_window = (_cu.min(traces), _cu.max(traces))
-            self.bin_edges = _cu.linspace(*self.y_window, self.bins_number + 1)
+            self.y_window = (_cp.min(traces), _cp.max(traces))
+            self.bin_edges = _cp.linspace(*self.y_window, self.bins_number + 1)
             logger.info('Bin edges set.')
 
     @property
@@ -28,36 +28,36 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
 
     @bin_edges.setter
     def bin_edges(self, bin_edges):
-        if bin_edges is None or not isinstance(bin_edges, (list, _cu.ndarray, range)):
+        if bin_edges is None or not isinstance(bin_edges, (list, _cp.ndarray, range)):
             raise TypeError(f'bin_edges must be a ndarray, a list or a range, not {type(bin_edges)}.')
         if len(bin_edges) <= 1:
             raise ValueError(f'bin_edges length must be >1, but {len(bin_edges)}, found.')
-        if not isinstance(bin_edges, _cu.ndarray):
-            bin_edges = _cu.array(bin_edges, dtype='float64')
+        if not isinstance(bin_edges, _cp.ndarray):
+            bin_edges = _cp.array(bin_edges, dtype='float64')
         for a, b in zip(bin_edges, bin_edges[1:]):
             if not a < b:
                 raise ValueError(f'bin_edges must be sorted, but {a} >= {b}.')
-        if _cu.sum(_cu.diff(_cu.diff(bin_edges))) > 1e-9:
+        if _cp.sum(_cp.diff(_cp.diff(bin_edges))) > 1e-9:
             raise ValueError('bin_edges must be uniform (i.e with bins equally spaced.')
         self._bin_edges = bin_edges
         self.bins_number = len(bin_edges) - 1
 
     def _set_precision(self, precision):
         try:
-            precision = _cu.dtype(precision)
+            precision = _cp.dtype(precision)
         except TypeError:
             raise TypeError(f'precision should be a valid dtype, not {precision}.')
         self.precision = precision
 
     def _initialize_accumulators(self):
-        self.accumulators = _cu.zeros((self._trace_length, self.bins_number, len(self.partitions), self._data_words),
+        self.accumulators = _cp.zeros((self._trace_length, self.bins_number, len(self.partitions), self._data_words),
                                       dtype=self.precision)
 
     @staticmethod
-    @_cuda.jit(cache=True)
+    @_cpda.jit(cache=True)
     def _accumulate_core_1(traces, data, self_bin_edges, self_accumulators, self_place_outliers):
-        start = _cuda.grid(1)
-        stride = _cuda.gridsize(1)
+        start = _cpda.grid(1)
+        stride = _cpda.gridsize(1)
 
         nbins = len(self_bin_edges) - 1
         min_edge = self_bin_edges[0]
@@ -82,10 +82,10 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
                     self_accumulators[sample_idx, bin_idx, data[trace_idx, data_idx], data_idx] += 1
 
     @staticmethod
-    @_cuda.jit(cache=True)
+    @_cpda.jit(cache=True)
     def _accumulate_core_2(traces, data, self_bin_edges, self_accumulators, self_place_outliers):
-        start = _cuda.grid(1)
-        stride = _cuda.gridsize(1)
+        start = _cpda.grid(1)
+        stride = _cpda.gridsize(1)
 
         nbins = len(self_bin_edges) - 1
         min_edge = self_bin_edges[0]
@@ -128,19 +128,27 @@ class MIADistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
     def _compute(self):
         background = self.accumulators.sum(axis=2)
 
-        pdfs_background = self._compute_pdf(background, axis=1)
+        pdfs_background = self._compute_pdf(background, axis=1) # P(L)
         pdfs_background[pdfs_background == 0] = 1
+        print(f'pdfs_background p(L): {pdfs_background.shape}')
 
-        pdfs_of_histos = self._compute_pdf(self.accumulators, axis=1)
+        pdfs_of_histos = self._compute_pdf(self.accumulators, axis=1) # P(L | H)
         pdfs_of_histos[pdfs_of_histos == 0] = 1
+        print(f'pdfs_of_histos p(L | H): {pdfs_of_histos.shape}')
 
         histos_sums = self.accumulators.sum(axis=1)
-        ratios = (histos_sums.swapaxes(0, 1) / background.sum(axis=1)).swapaxes(0, 1)
-        expected = pdfs_background * _cu.log(pdfs_background)
-        real = pdfs_of_histos * _cu.log(pdfs_of_histos)
-        delta = (real.swapaxes(1, 2).swapaxes(0, 1) - expected).swapaxes(0, 1).swapaxes(1, 2)
+        ratios = (histos_sums.swapaxes(0, 1) / background.sum(axis=1)).swapaxes(0, 1) # P(H)
+        print(f'ratios P(H): {ratios.shape}')
+
+        expected = pdfs_background * _cp.log(pdfs_background)  # P(L) * log(P(L))
+        print(f'expected P(L) * log(P(L)): {expected.shape}')
+        real = pdfs_of_histos * _cp.log(pdfs_of_histos) # P(L | H) * log(P(L | H))
+        print(f'real P(L | H) * log(P(L | H)): {real.shape}')
+        delta = (real.swapaxes(1, 2).swapaxes(0, 1) - expected).swapaxes(0, 1).swapaxes(1, 2) # (P(L | H) * log(P(L | H)) - P(L) * log(P(L)))
+        print(f'delta (P(L | H) * log(P(L | H)) - P(L) * log(P(L)): {delta.shape}')
         res = delta.sum(axis=1) * ratios
-        return _cu.sum(res, axis=1).swapaxes(0, 1)
+        print(f'res (delta * P(H)): {res.shape}')
+        return _cp.sum(res, axis=1).swapaxes(0, 1)
 
     @property
     def _distinguisher_str(self):

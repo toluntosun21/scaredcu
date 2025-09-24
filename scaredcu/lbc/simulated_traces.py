@@ -17,8 +17,6 @@ def collect_traces_basemult(N, d=2, reduction=None, n=256, q=769, alpha=1, beta=
                             chosen_c=None):
 
 
-    _npcp = _cp if filename is None else _np
-
     incomplete_ = 1 << incomplete
     dtype = reduction.o_dtype
     q = reduction.q

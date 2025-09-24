@@ -4,7 +4,7 @@ import numpy as _np
 def _is_bytes_array(array):
     # Note: Integer arrays cannot contain np.nan or np.inf
     if not isinstance(array, _cp.ndarray):
-        raise TypeError(f'array should be a Numpy ndarray instance, not {type(array)}.')
+        raise TypeError(f'array should be a Cupy ndarray instance, not {type(array)}.')
     if array.dtype == _cp.uint8:
         return True
     if array.dtype.kind not in 'ui':

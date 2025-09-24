@@ -5,13 +5,13 @@ from . import base as kyber
 class BaseMulQ2Q2(selection_functions._BaseMulIncompleteBase):
 
     def __new__(cls, *args, reduce=True, **kwargs):
-        super().__new__(cls, kyber.BaseMul(central=True, reduce=reduce), *args, **kwargs)
+        return super().__new__(cls, kyber.BaseMul(central=True, reduce=reduce), *args, **kwargs)
 
 
 class BaseMul0Q(selection_functions._BaseMulIncompleteBase):
 
     def __new__(cls, *args, reduce=True, **kwargs):
-        super().__new__(cls, kyber.BaseMul(central=False, reduce=reduce), *args, **kwargs)
+        return super().__new__(cls, kyber.BaseMul(central=False, reduce=reduce), *args, **kwargs)
 
 
 class BaseMulMonty(selection_functions._BaseMulIncompleteBase):
@@ -29,13 +29,13 @@ class BaseMulPlant(selection_functions._BaseMulIncompleteBase):
 class BaseMulQ2Q2Iterated(selection_functions._BaseMulIncompleteIteratedBase):
 
     def __new__(cls, cp_step, *args, reduce=True, **kwargs):
-        super().__new__(cls, cp_step, kyber.BaseMul(central=True, reduce=reduce), *args, **kwargs)
+        return super().__new__(cls, cp_step, kyber.BaseMul(central=True, reduce=reduce), *args, **kwargs)
 
 
 class BaseMul0QIterated(selection_functions._BaseMulIncompleteIteratedBase):
 
     def __new__(cls, cp_step, *args, reduce=True, **kwargs):
-        super().__new__(cls, cp_step, kyber.BaseMul(central=False, reduce=reduce), *args, **kwargs)
+        return super().__new__(cls, cp_step, kyber.BaseMul(central=False, reduce=reduce), *args, **kwargs)
 
 
 class BaseMulMontyIterated(selection_functions._BaseMulIncompleteIteratedBase):

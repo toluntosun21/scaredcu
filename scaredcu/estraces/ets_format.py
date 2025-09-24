@@ -69,7 +69,7 @@ class ETSFormatReader(AbstractReader):
     def fetch_metadatas(self, key, trace_id):
         if trace_id is not None:
             trace_index = self._convert_trace_index_to_file_index(trace_id)
-            res = self._metadatas[key][trace_index]
+            res = _to_cupy_array(self._metadatas[key][trace_index.get()])
         else:
             if isinstance(self._traceset_indices, slice):
                 res = _to_cupy_array(self._metadatas[key][self._traceset_indices])

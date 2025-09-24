@@ -61,7 +61,7 @@ def get_kernel_code_0(num_samples, num_partitions, num_data_cols, log_samples_di
                     sum_result += sum_val * (sum_val / counter);
                 }}
             }}
-            result[data_idx * num_samples + sample_id] = sum_result;
+            result[data_idx * num_samples + sample_id] = (12 * sum_result) / num_traces * (num_traces + 1) - (3 * (num_traces + 1));
         }}
     }}
     '''
@@ -106,7 +106,7 @@ def get_kernel_code_1(num_samples, num_partitions, num_data_cols, partition_dtyp
                     sum_result += sum_val * (sum_val / counter);
                 }}
             }}
-            result[data_idx * num_samples + sample_idx] = sum_result;
+            result[data_idx * num_samples + sample_idx] = (12 * sum_result) / num_traces * (num_traces + 1) - (3 * (num_traces + 1));
         }}  
     }}
     '''
@@ -207,7 +207,7 @@ class KWDistinguisherMixin(_PartitionnedDistinguisherBaseMixin):
             
             ranks[sorted_indices[:, col], col] = avg_ranks[inverse_indices]
         
-        return ranks
+        return ranks - 0.5
 
     def _accumulate(self, traces, data):
         if self.traces is None:
